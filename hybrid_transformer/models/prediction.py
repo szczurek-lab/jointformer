@@ -150,7 +150,8 @@ class HybridTransformer(HybridTransformerPreTrained):
             num_layers=config.num_layers,
             bias=config.bias,
             num_heads=config.num_heads,
-            task_p=config.task_p)
+            task_p=config.task_p,
+            prediction_task=config.prediction_task)
 
 
 class HybridTransformerWithPenalty(HybridTransformerPreTrained):

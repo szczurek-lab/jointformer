@@ -21,7 +21,7 @@
   "lr_decay_iters": 60000,
   "max_iters": 60000,
   "min_lr": 6e-05,
-  "out_dir": "/raid/aizd/hybrid_transformer/results/pretrained",
+  "out_dir": "/raid/aizd/hybrid_transformer/results/pretrained/moses",
   "resume": true,
   "transformers_version": "4.36.1",
   "wandb_enabled": true,

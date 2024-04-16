@@ -16,7 +16,7 @@ from hybrid_transformer.utils.loggers.wandb import WandbLogger
 from hybrid_transformer.trainers.trainer import Trainer
 
 from hybrid_transformer.utils.objectives.guacamol.objective import GUACAMOL_TASKS
-from hybrid_transformer.utils.objectives.molecule_net.objective import MOLECULE_NET_REGRESSION_TASKS
+from hybrid_transformer.utils.objectives.molecule_net.objective import MOLECULE_NET_REGRESSION_TASKS, MOLECULE_NET_CLASSIFICATION_TASKS
 from hybrid_transformer.models.prediction import PREDICTION_MODEL_CONFIGS
 
 DEFAULT_CONFIG_FILES = {
@@ -47,6 +47,10 @@ def main():
         task_config_path = lambda: f'./configs/tasks/guacamol/{task}/config.json'
         TASKS = GUACAMOL_TASKS
 
+    elif args.benchmark == 'molecule_net_classification':
+        task_config_path = lambda: f'./configs/tasks/molecule_net/{task}/config.json'
+        TASKS = MOLECULE_NET_CLASSIFICATION_TASKS
+
     elif args.benchmark == 'molecule_net':
         task_config_path = lambda: f'./configs/tasks/molecule_net/{task}/config.json'
         TASKS = MOLECULE_NET_REGRESSION_TASKS
@@ -70,6 +74,7 @@ def main():
             if model_name in args.model:
                 print("Running model {}".format(model_name))
                 model_config = ModelConfig.from_pretrained(path_to_model_config)
+                model_config.prediction_task = task_config.prediction_task
                 trainer_config = TrainerConfig.from_pretrained(args.path_to_trainer_config)
                 logger_config = LoggerConfig.from_pretrained(args.path_to_logger_config)
 

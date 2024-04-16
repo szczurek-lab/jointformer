@@ -20,10 +20,10 @@ from scripts.joint_learning.train import DEFAULT_CONFIG_FILES
 
 from hybrid_transformer.utils.objectives.guacamol.objective import GUACAMOL_TASKS
 from hybrid_transformer.models.prediction import PREDICTION_MODEL_CONFIGS
-from hybrid_transformer.utils.objectives.molecule_net.objective import MOLECULE_NET_REGRESSION_TASKS
+from hybrid_transformer.utils.objectives.molecule_net.objective import MOLECULE_NET_TASKS, MOLECULE_NET_REGRESSION_TASKS, MOLECULE_NET_CLASSIFICATION_TASKS
 
 
-from scripts.pretrain.eval import DEFAULT_REFERENCE_FILE, evaluate_distribution_learning
+from scripts.pretrain.eval import DEFAULT_REFERENCE_FILE, evaluate_distribution_learning_guacamol
 
 
 def parse_args():
@@ -32,6 +32,7 @@ def parse_args():
     parser.add_argument("--benchmark", type=str, required=True)
     parser.add_argument("--model", type=str, nargs='?')
     parser.add_argument('--task_p', nargs='?', type=float)
+    parser.add_argument('--evaluate_generation', nargs='?', type=int, default=0)
     parser.add_argument("-trainer", "--path_to_trainer_config", type=str, default=DEFAULT_CONFIG_FILES['trainer'])
     parser.add_argument("-logger", "--path_to_logger_config", type=str, default=DEFAULT_CONFIG_FILES['logger'])
     parser.add_argument("--reference_file", type=str, default=DEFAULT_REFERENCE_FILE)
@@ -48,15 +49,17 @@ def main():
     if args.benchmark == 'guacamol':
         task_config_path = lambda: f'./configs/tasks/guacamol/{task}/config.json'
         TASKS = GUACAMOL_TASKS
+    elif args.benchmark == 'molecule_net_classification':
+        task_config_path = lambda: f'./configs/tasks/molecule_net/{task}/config.json'
+        TASKS = MOLECULE_NET_CLASSIFICATION_TASKS
+
     elif args.benchmark == 'molecule_net':
         task_config_path = lambda: f'./configs/tasks/molecule_net/{task}/config.json'
         TASKS = MOLECULE_NET_REGRESSION_TASKS
-
     else:
         raise ValueError('Provide a correct benchmark name.')
 
     args.model = args.model if args.model is not None else list(PREDICTION_MODEL_CONFIGS.keys())
-    print(f"Evaluating the following models: {args.model} with {args.reference_file}...")
 
     for task in tqdm(TASKS, desc=f'Evaluating {args.benchmark} benchmark'):
         task_config = TaskConfig.from_pretrained(task_config_path())
@@ -69,7 +72,7 @@ def main():
             if model_name in args.model:
                 print(f"Evaluating {model_name}...")
                 model_config = ModelConfig.from_pretrained(path_to_model_config)
-
+                model_config.prediction_task = task_config.prediction_task
                 trainer_config = TrainerConfig.from_pretrained(args.path_to_trainer_config)
                 logger_config = LoggerConfig.from_pretrained(args.path_to_logger_config)
 
@@ -89,6 +92,7 @@ def main():
                 logger_init = False
                 filename = os.path.join(trainer.out_dir, 'results_prediction.json')
                 if not os.path.isfile(filename):
+                    print(f"Evaluating the following models: {args.model} with {args.reference_file}...")
                     logger_init = True
                     results_prediction = trainer.test(dataset)
 
@@ -96,17 +100,18 @@ def main():
                         json.dump(results_prediction, fp)
 
                 # Evaluate Generative Task
-                if args.reference_file == DEFAULT_REFERENCE_FILE:
-                    filename = os.path.join(trainer.out_dir, "distribution_learning_results.json")
-                else:
-                    filename = os.path.join(trainer.out_dir, "distribution_learning_results_finetune.json")
-                if args.benchmark == 'guacamol' and not os.path.isfile(filename):
-                    logger_init = True
-                    results = evaluate_distribution_learning(trainer, args.reference_file, filename)
-                    try:
-                        wandb.log(results)
-                    except wandb.Error:
-                        pass
+                if args.evaluate_generation == 1:
+                    if args.reference_file == DEFAULT_REFERENCE_FILE:
+                        filename = os.path.join(trainer.out_dir, "distribution_learning_results.json")
+                    else:
+                        filename = os.path.join(trainer.out_dir, "distribution_learning_results_finetune.json")
+                    if args.benchmark == 'guacamol' and not os.path.isfile(filename):
+                        logger_init = True
+                        results = evaluate_distribution_learning_guacamol(trainer, args.reference_file, filename)
+                        try:
+                            wandb.log(results)
+                        except wandb.Error:
+                            pass
                 if logger_init:
                     trainer.logger.finish()
 

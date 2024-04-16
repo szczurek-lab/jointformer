@@ -16,8 +16,8 @@ from hybrid_transformer.utils.optimization import AdamW
 class Transformer(nn.Module):
 
     def __init__(
-            self, vocab_size: int, max_seq_len: int, embedding_dim: int,
-            dropout: float, num_layers: int, bias: int, num_heads: int, task_p: float):
+            self, vocab_size: int, max_seq_len: int, embedding_dim: int, dropout: float,
+            num_layers: int, bias: int, num_heads: int, task_p: float, prediction_task: str = 'regression'):
         super().__init__()
         self.vocab_size = vocab_size
         self.max_seq_len = max_seq_len
@@ -26,8 +26,9 @@ class Transformer(nn.Module):
         self.num_layers = num_layers
         self.bias = bias
         self.num_heads = num_heads
-        self.prediction_head_output_dim = 1
+        self.prediction_head_output_dim = 1 if prediction_task == 'regression' else 2
         self.task_p = task_p
+        self.prediction_task = prediction_task
 
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(self.vocab_size, self.embedding_dim),
@@ -114,13 +115,19 @@ class Transformer(nn.Module):
         if target is not None:  # p(y | x)
             if task == 'lm':
                 # OLD: y_pred = self.prediction_head(x[:, -1, :]).flatten()
-                y_pred = self.prediction_head(self.output_dropout(x[:, -1, :])).flatten()
+                y_pred = self.prediction_head(self.output_dropout(x[:, -1, :]))
 
             if task == 'mlm':
                 # OLD: y_pred = self.prediction_head(x[:, 0, :]).flatten()
-                y_pred = self.prediction_head(self.output_dropout(x[:, 0, :])).flatten()
+                y_pred = self.prediction_head(self.output_dropout(x[:, 0, :]))
 
-            supervised_loss = F.mse_loss(y_pred, target)
+            if self.prediction_task == 'classification':
+                supervised_loss = F.nll_loss(F.log_softmax(y_pred, dim=1), target.long())
+                y_pred = F.softmax(y_pred, dim=1)
+            elif self.prediction_task == 'regression':
+                supervised_loss = F.mse_loss(y_pred.flatten(), target)
+            else:
+                raise ValueError(f"Invalid prediction task: {self.prediction_task}")
 
         else:
             supervised_loss = None

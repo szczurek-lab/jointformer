@@ -45,7 +45,8 @@ guacamol_objs = {"med1": med1, "pdop": pdop, "adip": adip, "rano": rano, "osmb":
 
 GUACAMOL_TASK_NAMES = [
     'med1', 'pdop', 'adip', 'rano', 'osmb', 'siga',
-    'zale', 'valt', 'med2', 'dhop', 'shop', 'fexo'
+    'zale', 'valt', 'med2', 'dhop', 'shop', 'fexo',
+    'qed', 'qed_classification'
 ]
 
 

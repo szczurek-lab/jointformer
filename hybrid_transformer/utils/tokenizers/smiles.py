@@ -86,6 +86,34 @@ class SMILESTokenizer(DeepChemTokenizer):
 
         return inputs
 
+    def _encode(self, inputs, target, task, device=None):
+        inputs = super().__call__(
+            inputs, return_special_tokens_mask=True, padding='max_length', truncation=True,
+            return_tensors='pt', max_length=128, return_token_type_ids=False)
+        mask = torch.einsum('bi, bj -> bij', (inputs['attention_mask'], inputs['attention_mask'])).unsqueeze(1)
+        mask = mask if self.use_pad_token_attention_mask else None
+        eos_mask = inputs['input_ids'] == self.eos_token_id
+
+        mlm_probability = 0.0
+        if task == 'lm':
+
+            inputs, labels = self.prepare_tokens(
+                self.set_generation_task_token(inputs['input_ids']), inputs['special_tokens_mask'], mlm_probability)
+        elif task == 'mlm':
+            inputs, labels = self.prepare_tokens(
+                self.set_prediction_task_token(inputs['input_ids']), inputs['special_tokens_mask'], mlm_probability)
+        else:
+            raise ValueError('Variable `task` must be either `lm` or `mlm`.')
+
+        inputs = {'input_ids': inputs, 'attention_mask': mask, 'labels': labels, 'target': target, 'eos_mask': eos_mask}
+
+        if device is not None:
+            for key, value in inputs.items():
+                if value is not None:
+                    inputs[key] = value.pin_memory().to(device, non_blocking=True)
+
+        return inputs
+
     def encode(self, x: str or List[str]) -> torch.Tensor:
         if isinstance(x, str):
             x = list(x)

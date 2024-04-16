@@ -13,6 +13,7 @@ from hybrid_transformer.utils.loggers.wandb import WandbLogger
 from hybrid_transformer.models.prediction import MLM_PREDICTION_MODELS, LM_PREDICTION_MODELS
 
 from hybrid_transformer.utils.runtime import set_seed
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 
 class Trainer:
@@ -105,7 +106,16 @@ class Trainer:
                 state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
 
         # load
-        self.model.load_state_dict(state_dict, strict=False)
+        try:
+            self.model.load_state_dict(state_dict, strict=False)
+        except RuntimeError:
+            if '_orig_mod.prediction_head.weight' in ckpt['model'].keys():
+                ckpt['model'].pop('_orig_mod.prediction_head.weight', None)
+            elif 'prediction_head.weight' in ckpt['model'].keys():
+                ckpt['model'].pop('prediction_head.weight', None)
+            else:
+                return RuntimeError("Model not loaded correctly.")
+
         # self.optimizer.load_state_dict(ckpt['optimizer'])
         self.optimizer_ckpt = ckpt['optimizer']
         if reset_iter_num:
@@ -318,7 +328,9 @@ class Trainer:
                     "val/valid": losses['valid'],
                     "lr": self.current_learning_rate,})
 
-        if losses['val'] < self.best_val_loss or self.always_save_checkpoint:
+        current_loss = losses['val_prediction'] if self.model.prediction_task == 'classification' else losses['val']
+        current_loss = losses['val_prediction'] if self.model.prediction_task == 'regression' else current_loss
+        if current_loss < self.best_val_loss or self.always_save_checkpoint:
             self.best_val_loss = losses['val']
             if self.iter_num > 0:
                 self.save_checkpoint()
@@ -328,7 +340,8 @@ class Trainer:
         batch_size = 64
         out = {}
         self._train_init()
-        self.logger.init_run()
+        if self.logger is not None:
+            self.logger.init_run()
         self.model.eval()
         loss_l1 = torch.nn.L1Loss(reduction='mean')
         loss_mse = torch.nn.MSELoss(reduction='mean')
@@ -336,7 +349,7 @@ class Trainer:
         idx = [i for i in range(len(dataset))]
         idx_batched = [idx[i: i + batch_size] for i in range(0, len(idx), batch_size)]
 
-        model_name = type(self.model._orig_mod).__name__
+        model_name = type(self.model._orig_mod).__name__ if self.config.compile else type(self.model).__name__
 
         if model_name in MLM_PREDICTION_MODELS:
             task = 'mlm'
@@ -346,6 +359,7 @@ class Trainer:
             raise ValueError(f'Model {model_name} not in {MLM_PREDICTION_MODELS, LM_PREDICTION_MODELS}.')
 
         predictions = []
+        prediction_probs = []
         targets = []
 
         for batch in range(len(idx_batched)):
@@ -357,20 +371,36 @@ class Trainer:
                     task=task, input_ids=inputs['input_ids'], attention_mask=inputs['attention_mask'],
                     labels=inputs['labels'], target=inputs['target'], eos_mask=inputs['eos_mask'])
 
-            predictions.extend(dataset.undo_target_transform(outputs['prediction'].cpu()))
+            prediction = torch.argmax(outputs['prediction'], dim=1) if self.model.prediction_task == 'classification' else outputs['prediction']
+            prediction_prob = outputs['prediction'][:, 1] if self.model.prediction_task == 'classification' else torch.Tensor([0.])
+            predictions.extend(dataset.undo_target_transform(prediction.cpu()))
+            prediction_probs.extend(prediction_prob.cpu())
             targets.extend(dataset.undo_target_transform(inputs['target'].cpu()))
 
         predictions = torch.Tensor(predictions)
+        prediction_probs = torch.Tensor(prediction_probs)
         targets = torch.Tensor(targets)
 
-        out['MSE'] = loss_mse(predictions, targets).item()
-        out['RMSE'] = torch.sqrt(loss_mse(predictions, targets)).item()
-        out['MAE'] = loss_l1(predictions, targets).item()
+        if self.model.prediction_task == 'classification':
+            out['acc'] = (predictions == targets).sum().item() / len(targets)
+            out['aucroc'] = roc_auc_score(targets, prediction_probs).item()
+            out['aucpr'] = average_precision_score(targets, prediction_probs).item()
+        elif self.model.prediction_task == 'regression':
+            out['MSE'] = loss_mse(predictions, targets).item()
+            out['RMSE'] = torch.sqrt(loss_mse(predictions, targets)).item()
+            out['MAE'] = loss_l1(predictions, targets).item()
+        else:
+            raise ValueError(f"Prediction task {self.model.prediction_task} not recognized.")
         out['y_pred'] = [item.item() for item in predictions]
         out['y_true'] = [item.item() for item in targets]
 
         if self.master_process and self.logger is not None:
-            self.logger.log({"test/MSE": out['MSE'], "test/RMSE": out['RMSE'], "test/MAE": out['MAE']})
+            if self.model.prediction_task == 'classification':
+                self.logger.log({"test/acc": out['acc'], "test/aucroc": out['aucroc'], "test/aucpr": out['aucpr']})
+            elif self.model.prediction_task == 'regression':
+                self.logger.log({"test/MSE": out['MSE'], "test/RMSE": out['RMSE'], "test/MAE": out['MAE']})
+            else:
+                raise ValueError(f"Prediction task {self.model.prediction_task} not recognized.")
 
         return out
 

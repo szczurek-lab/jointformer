@@ -25,6 +25,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", type=str, required=True)
     parser.add_argument("--num_samples", type=int, default=10000)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--top_k", nargs='?', type=int, default=0)
     parser.add_argument("-task", "--path_to_task_config", type=str, default=DEFAULT_CONFIG_FILES['task'])
     parser.add_argument("-model", "--path_to_model_config", type=str, default=DEFAULT_CONFIG_FILES['model'])
     parser.add_argument("-trainer", "--path_to_trainer_config", type=str, default=DEFAULT_CONFIG_FILES['trainer'])
@@ -33,7 +35,8 @@ def parse_args():
 
 
 @torch.no_grad()
-def generate(trainer, num_samples: int) -> List[str]:
+def generate(trainer, num_samples: int, temperature: float = 1.0, top_k: int = 0) -> List[str]:
+    top_k = top_k if top_k > 0 else None
     trainer._train_init()
     trainer.model.eval()
     generated_samples = []
@@ -41,7 +44,8 @@ def generate(trainer, num_samples: int) -> List[str]:
     for _ in range(sampling_iters):
         idx = torch.ones(size=(trainer.batch_size, 1), device=trainer.device) * trainer.tokenizer.generate_token_id
         idx = idx.long()
-        samples_batch = trainer.model.generate(idx=idx, max_new_tokens=trainer.tokenizer.max_molecule_length)
+        samples_batch = trainer.model.generate(
+            idx=idx, max_new_tokens=trainer.tokenizer.max_molecule_length, temperature=temperature, top_k=top_k)
         generated_samples.extend(samples_batch)
         print(f"Generated {len(generated_samples)} out of {num_samples} samples...", end='\r')
     generated_samples = generated_samples[:num_samples]
@@ -82,7 +86,8 @@ def main():
     # Load
     if os.path.isfile(os.path.join(trainer.out_dir, 'ckpt.pt')):
         trainer.load_checkpoint()
-        generated_samples = generate(trainer=trainer, num_samples=10000)
+        generated_samples = generate(
+            trainer=trainer, num_samples=args.num_samples, temperature=args.temperature, top_k=args.top_k)
         save_strings_to_file(generated_samples, os.path.join(trainer.out_dir, 'generated.smi'))
         print(f"Successfully generated {len(generated_samples)} samples in {trainer.out_dir}")
 
