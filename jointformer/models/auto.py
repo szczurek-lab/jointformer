@@ -8,12 +8,17 @@ class AutoModel:
     @classmethod
     def from_config(cls, config: ModelConfig):
 
-        if config.model_name == 'Jointformer':
+        if config.model_name == 'JointTransformer':
+            return getattr(importlib.import_module(
+                "jointformer.models.joint_transformer"),
+                "JointTransformer").from_config(config)
+
+        elif config.model_name == 'Jointformer':
             return getattr(importlib.import_module(
                 "jointformer.models.jointformer"),
                 "Jointformer").from_config(config)
 
-        if config.model_name == 'GPT':
+        elif config.model_name == 'GPT':
             return getattr(importlib.import_module(
                 "jointformer.models.gpt"),
                 "GPT").from_config(config)
