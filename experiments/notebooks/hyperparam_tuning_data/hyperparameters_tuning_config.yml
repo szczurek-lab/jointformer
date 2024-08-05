@@ -1,0 +1,20 @@
+# Outputs directory
+OUTPUTS_DIR: 'hyperparam_tuning_data/hyperparam_tuning_output'
+
+# Path to hyperparameters grid in JSON format
+HYPERPARAMETERS_GRID_FILEPATH: 'hyperparam_tuning_data/example_hyperparameters_grid.json'
+
+# Here, setup fixed hyperparams for your training-evaluation procedure - single Optuna trial. Example hyperparams below
+NUM_FOLDS: 5
+NUM_EPOCHS: 10
+BATCH_SIZE: 4
+CROSS_VAL_VAL_SIZE: 0.2
+NUM_WORKERS: 1
+ACCELERATOR: "cpu"   # "gpu" or "tpu"
+
+# Setup hyperparams corresponding to actual model's hyperparameters search
+# Hyperparams for hyperparameter tuning
+OPTUNA_METRIC_DIRECTION: 'minimize'   # 'minimize' or 'maximize'
+OPTUNA_N_TRIALS: 2   # Number of trials to run
+OPTUNA_N_JOBS: 1   # Number of parallel jobs
+OPTUNA_SEED: 42

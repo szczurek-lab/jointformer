@@ -1,0 +1,15 @@
+{
+    "learning_rate": 
+        {
+            "type": "float", 
+            "low": 1e-05, 
+            "high": 0.01,
+            "step": 0.001,
+            "log": false
+        },
+    "latent_dim": 
+        {
+            "type": "categorical", 
+            "choices": [16, 32]
+        }
+}
