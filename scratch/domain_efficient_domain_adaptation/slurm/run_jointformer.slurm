@@ -1,7 +1,7 @@
 #!/bin/bash
 
+#SBATCH --job-name=jointformer-domain-efficient 
 #SBATCH --array=0-5    
-#SBATCH --job-name=jointformer-domain-efficient_%a      
 #SBATCH --output jointformer-domain-efficient_%a.log                              
 #SBATCH --error jointformer-domain-efficient_%a.log                                 
 
@@ -49,7 +49,18 @@ conda deactivate
 conda activate jointformer-experiments
 
 
-python3 experiments/data_efficient_domain_adaptation/run.py \
+python3 experiments/data_efficient_domain_adaptation/train.py \
+   --data_dir /lustre/groups/aih/jointformer/data \
+   --out_dir /lustre/groups/aih/jointformer/results/sample_efficient_domain_adaptation/molecule_net/$splitter/$dataset/jointformer/ \
+   --path_to_dataset_config configs/datasets/molecule_net/$splitter/$dataset \
+   --path_to_tokenizer_config configs/tokenizers/smiles \
+   --path_to_model_config configs/models/jointformer \
+   --path_to_trainer_config configs/trainers/finetune \
+   --path_to_logger_config configs/loggers/wandb \
+   --path_to_model_ckpt /lustre/groups/aih/jointformer/results/pre-train/lm_psychem/no_separate_token/cls_emb/bs_512/drop_0/seed_1337/ckpt.pt \
+
+
+python3 experiments/data_efficient_domain_adaptation/test.py \
    --data_dir /lustre/groups/aih/jointformer/data \
    --out_dir /lustre/groups/aih/jointformer/results/sample_efficient_domain_adaptation/molecule_net/$splitter/$dataset/jointformer/ \
    --path_to_dataset_config configs/datasets/molecule_net/$splitter/$dataset \

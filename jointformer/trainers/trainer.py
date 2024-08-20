@@ -92,6 +92,7 @@ class Trainer:
         self.max_iters = config.max_iters
         self.log_interval = config.log_interval
         self.tasks = config.tasks
+        self.save_snapshot = config.save_snapshot
 
         self._iter_num = 0
         self._best_val_loss = 1e9
@@ -402,7 +403,6 @@ class Trainer:
 
     @torch.no_grad()
     def generate(self, temperature=1.0, top_k=25):
-        generate_token_id = self.tokenizer.tokenizer.convert_tokens_to_ids('GEN') if self.tokenizer.set_separate_task_tokens else None
         samples = self.model.generate(
             bos_token_id=self.tokenizer.tokenizer.cls_token_id,
             eos_token_id=self.tokenizer.tokenizer.sep_token_id,
@@ -411,8 +411,7 @@ class Trainer:
             batch_size=self.batch_size,
             temperature = temperature,
             top_k = top_k,
-            device = self.device,
-            generate_token_id = generate_token_id)
+            device = self.device)
         samples = self.tokenizer.decode(samples)
         return samples
 
@@ -479,6 +478,7 @@ class Trainer:
                         + 
                         f" time {dt * 1000:.2f}ms, mfu {self._running_mfu * 100:.2f}%"
                         )
-                    self._save_ckpt(SNAPSHOT_FILENAME)
+                    if self.save_snapshot:
+                        self._save_ckpt(SNAPSHOT_FILENAME)
             self._iter_num += 1
             local_iter_num += 1

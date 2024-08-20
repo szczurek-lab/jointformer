@@ -148,12 +148,8 @@ class Jointformer(Transformer, TrainableModel):
         outputs = self.forward(input_ids=input_ids, attention_mask=attention_mask, task='mlm')
         outputs["logits_generation"] = self.mlm_head(outputs['embeddings'])
         if input_labels is not None:
-            if self.set_separate_task_tokens:
-                logits = outputs['logits_generation'][:, 1:, :].contiguous()
-                labels = input_labels[:, 1:].contiguous() 
-            else:
-                logits = outputs['logits_generation']
-                labels = input_labels
+            logits = outputs['logits_generation']
+            labels = input_labels
             batch_size, seq_length, vocab_size = logits.size()
             outputs["loss"] = F.cross_entropy(
                 logits.view(batch_size * seq_length, vocab_size),
@@ -185,10 +181,10 @@ class Jointformer(Transformer, TrainableModel):
         Generate complete sequences of indices using the model.
         """
         idx = torch.full((batch_size, 1), bos_token_id, device=device, dtype=torch.long)
-        if self.set_separate_task_tokens:
-            assert generate_token_id is not None, "If set_separate_task_tokens is True, task_token_id must be provided."
-            idx_task_token = torch.full((batch_size, 1), generate_token_id, device=device, dtype=torch.long)  
-            idx = torch.cat([idx_task_token, idx], dim=1)
+        # if self.set_separate_task_tokens:
+        #     assert generate_token_id is not None, "If set_separate_task_tokens is True, task_token_id must be provided."
+        #     idx_task_token = torch.full((batch_size, 1), generate_token_id, device=device, dtype=torch.long)  
+        #     idx = torch.cat([idx_task_token, idx], dim=1)
 
         # TODO: implement caching
         idx = self.generate_single_token(idx, input_length - 1, temperature, top_k, eos_token_id, pad_token_id)

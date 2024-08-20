@@ -31,7 +31,8 @@ class TrainerConfig(Config):
         log_interval,
         max_iters,
         max_epochs,
-        tasks
+        tasks,
+        save_snapshot = True
     ):
         super().__init__()
 
@@ -65,6 +66,7 @@ class TrainerConfig(Config):
         self.always_save_checkpoint = always_save_checkpoint
         self.save_checkpoint_every = save_checkpoint_every
         self.save_checkpoint = save_checkpoint
+        self.save_snapshot = save_snapshot
 
         # others
         self.block_size = block_size

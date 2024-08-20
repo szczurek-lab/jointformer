@@ -26,5 +26,6 @@
   "tasks":
     {
       "prediction": 1
-    }
+    },
+  "save_snapshot": false   
 }

@@ -95,9 +95,19 @@ def main(args):
     # Initialize
     ###
     set_seed(seed=args.data_seed)
-    test_dataset = AutoDataset.from_config(dataset_config, split='test', data_dir=args.data_dir)
-    tokenizer = AutoTokenizer.from_config(tokenizer_config)
+    train_dataset = AutoDataset.from_config(dataset_config, split='train', data_dir=args.data_dir)
+    num_subsamples =  int(len(train_dataset) * args.fraction_training_examples)
 
+    train_dataset._subset(num_samples=num_subsamples, seed=args.data_seed)
+    val_dataset = AutoDataset.from_config(dataset_config, split='val', data_dir=args.data_dir)
+   
+    trainer_config.correct_for_num_train_examples(num_train_examples=len(train_dataset))
+    console.info(f"Selected Train: {len(train_dataset)} examples")
+
+    if args.prepare_data:
+        sys.exit()
+
+    tokenizer = AutoTokenizer.from_config(tokenizer_config)
     set_seed(seed=args.model_seed)
     model = AutoModel.from_config(model_config)
     logger = AutoLogger.from_config(logger_config) if logger_config else None
@@ -109,40 +119,40 @@ def main(args):
         seed=args.model_seed,
         config=trainer_config,
         model=model,
-        test_dataset=test_dataset,
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
         tokenizer=tokenizer,
         logger=logger
         )
-    trainer._init_data_loaders()
-    trainer.resume_from_file(os.path.join(tmp_out_dir, 'ckpt.pt')) 
-    return trainer.test()
+    console.info(f"Max iters is set to: {trainer.max_iters}")
 
+    try:
+        trainer.resume_snapshot()
+        console.info("Resumed Snapshot")
+    except FileNotFoundError:
+        if args.path_to_model_ckpt:
+            trainer.resume_from_file(args.path_to_model_ckpt)
+            console.info(f"Resuming pre-trained model from {args.path_to_model_ckpt}")
+        else:
+            console.info("Training from scratch")
+    
+    if args.dry_run:
+        console.info("Dry run finished!")
+        return 0.0
 
-def aggregate_results(results):
-    out = {}
-    for key, value in results.items():
-      out[key] = {}
-      result = np.array(list(value.values()))
-      out[key]['mean'] = round(np.mean(result), 3)
-      out[key]['se'] = round(np.std(result, ddof=1) / np.sqrt(len(result)), 3)
-    return out
-      
+    trainer.train()
+    return None
+
 
 if __name__ == "__main__":
     console.info("Script running...")
     args = parse_args()
-    out = {}
     log_args(args)
     data_seed_array = args.data_seed_array
     for fraction_training_examples in FRACTION_TRAINING_EXAMPLES:
-        out[fraction_training_examples] = {}
         args.fraction_training_examples = fraction_training_examples
         for data_seed in data_seed_array:
             args.data_seed = data_seed
             args.model_seed = args.model_seed_array[0]
-            out[fraction_training_examples][data_seed] = main(args)
-            write_dict_to_file(out, os.path.join(args.out_dir, 'results.json'))
-
-    results = aggregate_results(out)
-    write_dict_to_file(results, os.path.join(args.out_dir, 'results_aggregated.json'))
+            main(args)
     console.info("Script finished!")

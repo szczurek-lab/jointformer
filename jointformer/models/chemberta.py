@@ -41,8 +41,14 @@ class ChemBERTa(RobertaPreTrainedModel, BaseModel):
     def load_pretrained(self, filename: str):
         self.from_pretrained(filename)
 
+    def save_pretrained(self, filename: str):
+        super(RobertaClassificationHead).save_pretrained(filename)
+
     def to_guacamole_generator(self, tokenizer, batch_size, temperature, top_k, device) -> DistributionMatchingGenerator:
         return DefaultSmilesGeneratorWrapper(self, tokenizer, batch_size, temperature, top_k, device)
+    
+    def to_smiles_encoder(self, tokenizer, batch_size, device):
+        return self
 
     def get_num_params(self):
         return self.num_parameters()

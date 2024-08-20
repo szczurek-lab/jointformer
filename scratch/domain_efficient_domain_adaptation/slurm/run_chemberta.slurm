@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH --array=0-5    
-#SBATCH --job-name=chemberta-domain-efficient_%a     
+#SBATCH --job-name=chemberta-domain-efficient
+#SBATCH --array=0-5         
 #SBATCH --output chemberta-domain-efficient_%a.log                              
 #SBATCH --error chemberta-domain-efficient_%a.log                                 
 
