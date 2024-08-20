@@ -126,15 +126,11 @@ def main(args):
         )
     console.info(f"Max iters is set to: {trainer.max_iters}")
 
-    try:
-        trainer.resume_snapshot()
-        console.info("Resumed Snapshot")
-    except FileNotFoundError:
-        if args.path_to_model_ckpt:
-            trainer.resume_from_file(args.path_to_model_ckpt)
-            console.info(f"Resuming pre-trained model from {args.path_to_model_ckpt}")
-        else:
-            console.info("Training from scratch")
+    if args.path_to_model_ckpt:
+        trainer.resume_from_file(args.path_to_model_ckpt)
+        console.info(f"Resuming pre-trained model from {args.path_to_model_ckpt}")
+    else:
+        console.info("Training from scratch")
     
     if args.dry_run:
         console.info("Dry run finished!")

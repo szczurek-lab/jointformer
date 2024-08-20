@@ -9,7 +9,7 @@
 #SBATCH --qos gpu_long
 
 #SBATCH --nodes=1                                           
-#SBATCH --ntasks-per-node=1                                 
+#SBATCH --ntasks-per-node=8                                 
 #SBATCH --gpus-per-task=1                                   
 #SBATCH --cpus-per-task=4                                   
 #SBATCH --mem=10G                                           
