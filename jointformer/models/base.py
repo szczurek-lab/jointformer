@@ -26,9 +26,8 @@ class BaseModel(nn.Module, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def save_pretrained(self, filename, device='cpu'):
+    def save_pretrained(self, filename):
         pass
-
 
     @classmethod
     @abc.abstractmethod
