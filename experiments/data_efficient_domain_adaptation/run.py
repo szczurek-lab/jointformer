@@ -3,6 +3,7 @@ import logging
 import argparse
 
 import torch.distributed as dist
+import numpy as np
 
 from socket import gethostname
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -57,6 +58,7 @@ def parse_args():
     parser.add_argument("--num_epochs", type=int, default=DEFAULT_NUM_EPOCHS)
     parser.add_argument("--fraction_training_examples", type=float, default=1.)
     parser.add_argument("--prepare_data", default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument("--dry_run", default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--test", default=False, action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     return args
@@ -133,6 +135,10 @@ def main(args):
         else:
             console.info("Training from scratch")
     
+    if args.dry_run:
+        console.info("Dry run finished!")
+        return 0.0
+
     trainer.train()
 
     # reload best model
