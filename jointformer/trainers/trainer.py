@@ -174,6 +174,7 @@ class Trainer:
 
     def resume_from_file(self, filepath, resume_training=False):
         checkpoint = torch.load(filepath, map_location=self.device)
+
         try:
             state_dict = checkpoint['model']
             unwanted_prefix = '_orig_mod.'  # compile
@@ -183,14 +184,16 @@ class Trainer:
             self.model.load_state_dict(state_dict)
         except RuntimeError:
             self.model.load_state_dict(checkpoint['model'])
-        self.optimizer.load_state_dict(checkpoint["optimizer"])
+
         if resume_training:
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
             self._iter_num = checkpoint['iter_num']
             self._best_val_loss = checkpoint['best_val_loss']
             self._loss_dict = checkpoint['loss_dict']
             self._resumed_from_iter_num = self._iter_num
             if self.logger is not None:
                 self.logger.set_run_id(checkpoint['run_id'] if 'run_id' in checkpoint else None)
+
         checkpoint = None
 
     def _save_ckpt(self, filename: str):

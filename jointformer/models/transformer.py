@@ -51,6 +51,9 @@ class Transformer(nn.Module):
         x = self.layer_norm(x)
         return ModelOutput(embeddings=x, attention_mask=attention_mask)
 
+    def save_pretrained(self, filename):
+        pass
+
     def load_pretrained(self, filename, device='cpu'):
         state_dict = torch.load(filename, map_location=device, weights_only=True)['model']
         unwanted_prefix = '_orig_mod.'  # compile

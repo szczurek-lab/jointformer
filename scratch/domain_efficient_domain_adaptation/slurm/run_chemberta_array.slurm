@@ -49,11 +49,18 @@ conda deactivate
 conda activate jointformer-experiments
 
 
-python3 experiments/data_efficient_domain_adaptation/run.py \
+python3 experiments/data_efficient_domain_adaptation/train.py \
    --data_dir /lustre/groups/aih/jointformer/data \
    --out_dir /lustre/groups/aih/jointformer/results/sample_efficient_domain_adaptation/molecule_net/$splitter/$dataset/chemberta/ \
    --path_to_dataset_config configs/datasets/molecule_net/$splitter/$dataset \
    --path_to_tokenizer_config configs/tokenizers/chemberta \
    --path_to_model_config configs/models/chemberta \
    --path_to_trainer_config configs/trainers/finetune \
-   --path_to_logger_config configs/loggers/wandb \
+
+python3 experiments/data_efficient_domain_adaptation/test.py \
+   --data_dir /lustre/groups/aih/jointformer/data \
+   --out_dir /lustre/groups/aih/jointformer/results/sample_efficient_domain_adaptation/molecule_net/$splitter/$dataset/chemberta/ \
+   --path_to_dataset_config configs/datasets/molecule_net/$splitter/$dataset \
+   --path_to_tokenizer_config configs/tokenizers/chemberta \
+   --path_to_model_config configs/models/chemberta \
+   --path_to_trainer_config configs/trainers/finetune \

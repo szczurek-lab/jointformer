@@ -25,6 +25,8 @@ from jointformer.utils.runtime import set_seed, create_output_dir, set_to_dev_mo
 from jointformer.utils.ddp import init_ddp, end_ddp
 from jointformer.utils.data import write_dict_to_file
 
+from experiments.data_efficient_domain_adaptation.train import FRACTION_TRAINING_EXAMPLES, MODEL_SEED_ARRAY, DATA_SEED_ARRAY, DEFAULT_NUM_EPOCHS
+
 # from experiments.joint_training.train import main as joint_training_main
 
 console = logging.getLogger(__file__)
@@ -36,11 +38,6 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
 )
 logging.captureWarnings(True)
-
-FRACTION_TRAINING_EXAMPLES = [0.01, 0.1, 0.25, 1.0]
-MODEL_SEED_ARRAY = [1337]
-DATA_SEED_ARRAY = [0, 1, 2]
-DEFAULT_NUM_EPOCHS = 20
 
 
 def parse_args():
@@ -115,8 +112,9 @@ def main(args):
         )
     trainer._init_data_loaders()
     trainer.resume_from_file(os.path.join(tmp_out_dir, 'ckpt.pt')) 
-    return trainer.test()
-
+    score = trainer.test()
+    os.remove(os.path.join(tmp_out_dir, 'ckpt.pt'))
+    return score
 
 def aggregate_results(results):
     out = {}
@@ -129,7 +127,6 @@ def aggregate_results(results):
       
 
 if __name__ == "__main__":
-    console.info("Script running...")
     args = parse_args()
     out = {}
     log_args(args)
@@ -145,4 +142,4 @@ if __name__ == "__main__":
 
     results = aggregate_results(out)
     write_dict_to_file(results, os.path.join(args.out_dir, 'results_aggregated.json'))
-    console.info("Script finished!")
+    console.info("Test script finished!")

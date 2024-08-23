@@ -87,6 +87,7 @@ def main(args):
         trainer_config.batch_size = 2
         trainer_config.eval_iters = 1
         trainer_config.log_interval = 1
+        trainer_config.eval_interval = 2
 
     dump_configs(args.out_dir, dataset_config, tokenizer_config, model_config, trainer_config, logger_config)
     ###
@@ -101,7 +102,8 @@ def main(args):
     train_dataset._subset(num_samples=num_subsamples, seed=args.data_seed)
     val_dataset = AutoDataset.from_config(dataset_config, split='val', data_dir=args.data_dir)
    
-    trainer_config.correct_for_num_train_examples(num_train_examples=len(train_dataset))
+    if not args.test:
+        trainer_config.correct_for_num_train_examples(num_train_examples=len(train_dataset))
     console.info(f"Selected Train: {len(train_dataset)} examples")
 
     if args.prepare_data:
@@ -141,7 +143,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    console.info("Script running...")
     args = parse_args()
     log_args(args)
     data_seed_array = args.data_seed_array
@@ -150,5 +151,6 @@ if __name__ == "__main__":
         for data_seed in data_seed_array:
             args.data_seed = data_seed
             args.model_seed = args.model_seed_array[0]
+            console.info(f"Script running for fraction {args.fraction_training_examples} and seed {args.data_seed}...")
             main(args)
     console.info("Script finished!")
