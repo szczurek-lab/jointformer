@@ -28,6 +28,7 @@ class Jointformer(Transformer, TrainableModel):
             num_layers: int,
             bias: int,
             num_heads: int,
+            group_size: int,
             layer_norm_eps: float,
             prediction_task_type: str,
             prediction_hidden_dim: int,
@@ -39,7 +40,7 @@ class Jointformer(Transformer, TrainableModel):
 
         super().__init__(
             vocab_size=vocab_size, max_seq_len=max_seq_len, embedding_dim=embedding_dim, embedding_hidden_dim=embedding_hidden_dim, attention_dropout=attention_dropout,
-            feed_forward_dropout=feed_forward_dropout, num_layers=num_layers, bias=bias, num_heads=num_heads, layer_norm_eps=layer_norm_eps
+            feed_forward_dropout=feed_forward_dropout, num_layers=num_layers, bias=bias, num_heads=num_heads, group_size=group_size, layer_norm_eps=layer_norm_eps
             )
         
         # Hardcoding all tasks into the model definition for easier serialization

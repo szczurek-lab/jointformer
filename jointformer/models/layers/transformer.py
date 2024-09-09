@@ -2,15 +2,15 @@ import torch
 import torch.nn as nn
 
 from jointformer.models.layers.layer_norm import RMSNorm
-from jointformer.models.layers.attention import Attention
+from jointformer.models.layers.gqa import GroupedQueryAttention
 from jointformer.models.layers.mlp import FeedForward
 
 
 class TransformerLayer(nn.Module):
 
-    def __init__(self, embedding_dim, embedding_hidden_dim, bias, attention_dropout, feed_forward_dropout, num_heads, block_size, layer_norm_eps):
+    def __init__(self, embedding_dim, embedding_hidden_dim, bias, attention_dropout, feed_forward_dropout, num_heads, group_size, block_size, layer_norm_eps):
         super().__init__()
-        self.attention_layer = Attention(embedding_dim, num_heads, bias, attention_dropout, block_size)
+        self.attention_layer = GroupedQueryAttention(embedding_dim, num_heads, group_size, bias, attention_dropout, block_size)
         self.feed_forward = FeedForward(embedding_dim, embedding_hidden_dim, bias, feed_forward_dropout)
         self.attention_layer_normalization = RMSNorm(embedding_dim, layer_norm_eps)
         self.feed_forward_normalization = RMSNorm(embedding_dim, layer_norm_eps)
