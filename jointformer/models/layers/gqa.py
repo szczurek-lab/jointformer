@@ -24,7 +24,8 @@ class GroupedQueryAttention(nn.Module):
         self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
 
     def forward(self, x: torch.Tensor, attn_mask: torch.Tensor, is_causal: bool) -> torch.Tensor:
-        """ Performs grouped query attention.
+        """
+        Performs grouped query attention.
         Code inspired by [https://github.com/fkodom/grouped-query-attention-pytorch/blob/main/grouped_query_attention_pytorch/attention.py]
 
         Args:
@@ -34,7 +35,6 @@ class GroupedQueryAttention(nn.Module):
         
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, embedding_dim)
-        
         """
         batch_size, seq_len, _ = x.shape 
 
@@ -54,18 +54,19 @@ class GroupedQueryAttention(nn.Module):
         
         # Actual attention score calculation
         attn_tmp = einsum(q, k, "b g h n d, b h s d -> b g h n s")
-
         scaled_attn_tmp = attn_tmp / math.sqrt(self.head_dim)
         scores = torch.softmax(scaled_attn_tmp, dim=-1)
         scores = torch.dropout(scores, self.dropout, train=True)
         
-        # Weigh value matrix with calculated attention scores and convert dimensions back to original format
+        # Weigh value matrix with calculated attention scores & convert dimensions back to original format
         val_scores = einsum(scores, v, "b g h n s, b h s d -> b g h n d")
         val_scores = rearrange(val_scores, "b g h n d -> b n (h g) d")
         
         # Concatenate heads for multiplication with projection matrix
         concat_heads = rearrange(val_scores, 'b n h d -> b n (h d)')
         assert concat_heads.shape == (batch_size, seq_len, self.embedding_dim), f"Expected concat_head's shape to be {(batch_size, seq_len, self.embedding_dim)}, but was {concat_heads.shape}"
+        
+        # Project back into original embedding dimension for the next layer
         y = self.out(concat_heads)
         return y
     
