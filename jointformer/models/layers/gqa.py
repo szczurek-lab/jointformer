@@ -1,38 +1,36 @@
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from jointformer.models.layers.rotary import RotaryPositionalEmbedding
-
+from rotary import RotaryPositionalEmbedding
+from einops import einsum, rearrange
 
 class GroupedQueryAttention(nn.Module):
-    def __init__(self, embedding_dim: int, num_heads: int, group_size:int, bias: bool, dropout: float, block_size: int):
+    def __init__(self, embedding_dim: int, num_q_heads: int, group_size:int, bias: bool, dropout: float, block_size: int):
         super().__init__()
         self.embedding_dim = embedding_dim
-        self.num_heads = num_heads
+        self.num_q_heads = num_q_heads
         self.group_size = group_size
-        self.head_dim = embedding_dim // num_heads
+        self.head_dim = embedding_dim // num_q_heads
         self.bias = bias
         self.dropout = dropout
         self.block_size = block_size
-        self.sdpa = F.scaled_dot_product_attention if hasattr(torch.nn.functional, 'scaled_dot_product_attention') else self.scaled_dot_product_attention
-        
-        self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
+        self.num_kv_heads = num_q_heads // group_size
+        assert num_q_heads % group_size == 0, f"num_heads % group_size == 0 must hold! num_heads: {num_q_heads}, group_size: {group_size}" 
         self.relative_embedding = RotaryPositionalEmbedding(self.head_dim)
-        assert num_heads % group_size == 0, f"num_heads % group_size == 0 must hold! num_heads: {num_heads}, group_size: {group_size}" 
-        self.num_kv_heads = num_heads // group_size
         self.q_proj = nn.Linear(self.embedding_dim, self.embedding_dim, bias=False)
-        self.k_proj = nn.Linear(self.embedding_dim, self.head_dim * self.num_kv_heads, bias=False)
-        self.v_proj = nn.Linear(self.embedding_dim, self.head_dim * self.num_kv_heads, bias=False)
+        self.k_proj = nn.Linear(self.embedding_dim, self.embedding_dim // self.group_size, bias=False)
+        self.v_proj = nn.Linear(self.embedding_dim, self.embedding_dim // self.group_size, bias=False)
+        self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
 
     def forward(self, x: torch.Tensor, attn_mask: torch.Tensor, is_causal: bool) -> torch.Tensor:
-        """ Forward pass of the attention layer.
+        """ Performs grouped query attention.
+        Code inspired by [https://github.com/fkodom/grouped-query-attention-pytorch/blob/main/grouped_query_attention_pytorch/attention.py]
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, embedding_dim)
-            attn_mask (torch.Tensor): Mask tensor of shape (batch_size, seq_len) and type torch.bool
-            is_causal (bool): If True, the model is autoregressive and variable `mask` is ignored
+            attn_mask (torch.Tensor): Placeholder for future masking implementation
+            is_causal (bool): Placeholder for future masking implementation
         
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, embedding_dim)
@@ -40,28 +38,46 @@ class GroupedQueryAttention(nn.Module):
         """
         batch_size, seq_len, _ = x.shape 
 
-        q = self.q_proj.view(batch_size, seq_len, self.num_heads, self.head_dim)
-        k = self.k_proj.view(batch_size, seq_len, self.num_kv_heads, self.group_size)
-        v = self.v_proj.view(batch_size, seq_len, self.num_kv_heads, self.group_size)
+        q = self.q_proj.forward(x)
+        k = self.k_proj.forward(x)
+        v = self.v_proj.forward(x)
+        assert q.shape == (batch_size, seq_len, self.embedding_dim), f"Expected q's shape to be {(batch_size, seq_len, self.embedding_dim)}, but was {q.shape}"
+        assert k.shape == (batch_size, seq_len, self.embedding_dim // self.group_size), f"Expected k's shape to be {(batch_size, seq_len, self.embedding_dim // self.group_size)}, but was {k.shape}"
 
-        q = RotaryPositionalEmbedding(self.head_dim).forward(q)
-        k = RotaryPositionalEmbedding(self.group_size).forward(k)
+        # Rearranging linear projection to fit attention calculation with multiple heads & swapping seq_len with num_heads for more efficient computation
+        q = rearrange(q, 'b n (h d) -> b h n d', h=self.num_q_heads)
+        k = rearrange(k, 'b s (h d) -> b h s d', h=self.num_kv_heads)
+        v = rearrange(v, 'b s (h d) -> b h s d', h=self.num_kv_heads)
+        
+        # Introduce group logic to query matrix
+        q = rearrange(q, "b (h g) n d -> b g h n d", g=self.group_size)
+        
+        # Actual attention score calculation
+        attn_tmp = einsum(q, k, "b g h n d, b h s d -> b g h n s")
 
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2) 
+        scaled_attn_tmp = attn_tmp / math.sqrt(self.head_dim)
+        scores = torch.softmax(scaled_attn_tmp, dim=-1)
+        scores = torch.dropout(scores, self.dropout, train=True)
         
-        attn_tmp = q @ k.transpose(1, 2) / math.sqrt(self.head_dim)
-        attn_tmp = torch.softmax(attn_tmp, dim=-1)
-        attn_tmp = self.apply_utm_mask(attn_tmp)
-        attn_tmp = torch.dropout(attn_tmp, self.dropout, train=True)
-        attn_score = attn_tmp @ v
+        # Weigh value matrix with calculated attention scores and convert dimensions back to original format
+        val_scores = einsum(scores, v, "b g h n s, b h s d -> b g h n d")
+        val_scores = rearrange(val_scores, "b g h n d -> b n (h g) d")
         
-        y = attn_score.transpose(1, 2).contiguous().view(batch_size, seq_len, self.embedding_dim)        
-        y = self.out(y)
+        # Concatenate heads for multiplication with projection matrix
+        concat_heads = rearrange(val_scores, 'b n h d -> b n (h d)')
+        assert concat_heads.shape == (batch_size, seq_len, self.embedding_dim), f"Expected concat_head's shape to be {(batch_size, seq_len, self.embedding_dim)}, but was {concat_heads.shape}"
+        y = self.out(concat_heads)
         return y
     
-    def apply_utm_mask(x: torch.Tensor) -> torch.Tensor:
-        # TODO
-        return x
-        
+    
+if __name__ == "__main__":
+    emb_dim = 512
+    num_q_heads = 8
+    group_size = 4
+    batch_size = 1
+    seq_len = 256
+    
+    gqa = GroupedQueryAttention(emb_dim, num_q_heads, group_size, False, 0, 0)
+    ex1 = torch.ones((batch_size, seq_len, emb_dim))
+    att = gqa.forward(ex1, None, None)
+    
