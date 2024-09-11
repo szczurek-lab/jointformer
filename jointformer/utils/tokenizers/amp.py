@@ -14,7 +14,7 @@ TASK_TOKEN_DICT = {
 }
 
 
-class AMPTokenizer(SmilesTokenizerSeparateTaskToken):
+class AMPTokenizerWithPrefix(SmilesTokenizerSeparateTaskToken):
 
     def __init__(
         self,
