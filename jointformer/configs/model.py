@@ -34,6 +34,8 @@ class ModelConfig(Config):
         predictor_num_heads: Optional[int] = None,
         prediction_hidden_dim: Optional[int] = None,
         set_separate_task_tokens: Optional[bool] = None,
+        group_size: Optional[int] = 1,
+        batch_size: Optional[int] = 1,
     ):
         super().__init__()
         self.model_name = model_name
@@ -59,6 +61,8 @@ class ModelConfig(Config):
         self.predictor_num_heads = predictor_num_heads
         self.prediction_hidden_dim = prediction_hidden_dim
         self.set_separate_task_tokens = set_separate_task_tokens
+        self.group_size = group_size
+        self.batch_size = batch_size
         if self.model_name not in ["Moler", "UniMol", "RegressionTransformer", "MolGPT"]:
             self._post_init()
         

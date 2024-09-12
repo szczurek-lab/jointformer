@@ -35,12 +35,12 @@ class Jointformer(Transformer, TrainableModel):
             num_prediction_tasks: int,
             num_physchem_tasks: Optional[int] = DEFAULT_NUM_PHYCHEM_TASKS,
             init_weights: bool = True,
-            tie_weights: bool = True
+            tie_weights: bool = True,
+            batch_size: int = 1
     ):
-
         super().__init__(
             vocab_size=vocab_size, max_seq_len=max_seq_len, embedding_dim=embedding_dim, embedding_hidden_dim=embedding_hidden_dim, attention_dropout=attention_dropout,
-            feed_forward_dropout=feed_forward_dropout, num_layers=num_layers, bias=bias, num_heads=num_heads, group_size=group_size, layer_norm_eps=layer_norm_eps
+            feed_forward_dropout=feed_forward_dropout, num_layers=num_layers, bias=bias, num_heads=num_heads, group_size=group_size, layer_norm_eps=layer_norm_eps, batch_size=batch_size
             )
         
         # Hardcoding all tasks into the model definition for easier serialization
@@ -92,7 +92,7 @@ class Jointformer(Transformer, TrainableModel):
         else:
             raise ValueError('Variable `task` must be either `generation`, `mlm`, `prediction` or `physchem`. Passed value: {}'.format(task))
         
-        outputs = super().forward(input_ids=input_ids, attention_mask=_attention_mask, is_causal=_is_causal)
+        outputs = super().forward(input_ids=input_ids, attention_mask=_attention_mask, is_causal=_is_causal, next_token_only=next_token_only)
         cls_embeddings = self._get_cls_embeddings(outputs['embeddings'])
         lm_embeddings = self._get_lm_embeddings(outputs['embeddings'], next_token_only)
 
@@ -255,6 +255,8 @@ class Jointformer(Transformer, TrainableModel):
         return cls(
             vocab_size=config.vocab_size,
             max_seq_len=config.max_seq_len,
+            group_size=config.group_size,
+            batch_size=config.batch_size,
             embedding_dim=config.embedding_dim,
             embedding_hidden_dim=config.embedding_hidden_dim,
             attention_dropout=config.attention_dropout,
