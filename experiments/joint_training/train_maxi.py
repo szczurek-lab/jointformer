@@ -38,7 +38,7 @@ OUTPUT_DIR = f"{OUT_DIR_BASE}/out-train"
 PATH_TO_DATASET_CONFIG = f"{REPOSITORY_DIR}/configs/datasets/guacamol/unsupervised"
 PATH_TO_TOKENIZER_CONFIG = f"{REPOSITORY_DIR}/configs/tokenizers/smiles_separate_task_token"
 PATH_TO_MODEL_CONFIG = f"{REPOSITORY_DIR}/configs/models/jointformer_separate_task_token"
-PATH_TO_TRAINER_CONFIG = f"{REPOSITORY_DIR}/configs/trainers/joint"
+PATH_TO_TRAINER_CONFIG = f"{REPOSITORY_DIR}/configs/trainers/maxi_test"
 PATH_TO_LOGGER_CONFIG = f"{REPOSITORY_DIR}/configs/loggers/maxi"
 
 DEFAULT_MODEL_SEED_ARRAY = 1337
@@ -73,6 +73,8 @@ def main():
         logger.store_configs(dataset_config, tokenizer_config, model_config, trainer_config, logger_config) # Store configs, within the logger object
 
     init_ddp(trainer_config.enable_ddp)
+    print(trainer_config.batch_size)
+    model.update_batch_size(trainer_config.batch_size)
     trainer = Trainer(
         out_dir=OUTPUT_DIR,
         seed=DEFAULT_MODEL_SEED_ARRAY,
@@ -82,7 +84,6 @@ def main():
         val_dataset=val_dataset,
         tokenizer=tokenizer,
         logger=logger)
-    model.batch_size=trainer.batch_size
     try:
         trainer.resume_snapshot()
         console.info("Resumed Snapshot")

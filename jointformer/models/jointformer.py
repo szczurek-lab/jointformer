@@ -250,6 +250,9 @@ class Jointformer(Transformer, TrainableModel):
     def load_pretrained(self, filename, device='cpu'):
         super().load_pretrained(filename, device=device)
 
+    def update_batch_size(self, batch_size: int) -> None:
+        super().update_batch_size(batch_size)
+
     @classmethod
     def from_config(cls, config):
         return cls(

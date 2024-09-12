@@ -99,3 +99,7 @@ class Transformer(nn.Module):
         extra_args = dict(fused=True) if use_fused else dict()
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
         return optimizer
+
+    def update_batch_size(self, batch_size: int) -> None:
+        for layer in self.layers: 
+            layer.update_batch_size(batch_size)

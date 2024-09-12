@@ -19,3 +19,8 @@ class TransformerLayer(nn.Module):
         x = x + self.attention_layer(x=self.attention_layer_normalization(x), next_token_only=next_token_only)
         x = x + self.feed_forward(self.feed_forward_normalization(x))
         return x
+
+    def update_batch_size(self, batch_size: int) -> None:
+        self.attention_layer.batch_size = batch_size
+        
+        
