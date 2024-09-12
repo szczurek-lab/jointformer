@@ -1,7 +1,7 @@
-models=(jointformer_lm_features jointformer_cls_features jointformer_old moler)
+models=(jointformer_separate_task_token unimol)
 #targets=()
 targets=(plogp qed amlodipine fexofenadine osimertinib perindopril sitagliptin ranolazine zaleplon)
-evals=(eval_linear eval_mlp)
+evals=(eval_linear eval_mlp eval_knn)
 
 for model in ${models[@]}; do
     train_data_path="outputs/${model}/train/guacamol_v1_features.npy"

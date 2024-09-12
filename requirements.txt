@@ -1,10 +1,11 @@
+torch==2.2.0 --index-url https://download.pytorch.org/whl/cu118
+torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu118
+torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
 deepchem
 fcd==1.2
 guacamol
-ipykernel
-jupyterlab
 matplotlib
-numpy<2.0
+numpy==1.26
 pandas==1.5.3
 rdkit==2023.9.2
 scipy==1.10.1

@@ -355,8 +355,8 @@ class SmilesDataset(Dataset):
             smiles = smiles[:self.max_len]
 
         smiles=regex.findall(smiles)
-        dix =  [self.stoi[s] for s in smiles]
-        
+        dix = [self.stoi.get(s, self.stoi['<']) for s in smiles]
+
         x = torch.tensor(dix[:-1], dtype=torch.long)
         y = torch.tensor(dix[1:], dtype=torch.long)
         return x, y

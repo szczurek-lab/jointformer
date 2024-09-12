@@ -188,9 +188,9 @@ def eval_knn(args, train_dataset: TensorDataset, val_dataset: TensorDataset, tes
     
 def main(args):
         
-    train_dataset = TensorDataset(torch.from_numpy(np.load(args.train_data_path)), torch.from_numpy(np.load(args.train_target_path)))
-    val_dataset = TensorDataset(torch.from_numpy(np.load(args.val_data_path)), torch.from_numpy(np.load(args.val_target_path)))
-    test_dataset = TensorDataset(torch.from_numpy(np.load(args.test_data_path)), torch.from_numpy(np.load(args.test_target_path)))
+    train_dataset = TensorDataset(torch.from_numpy(np.load(args.train_data_path)).float(), torch.from_numpy(np.load(args.train_target_path)).float())
+    val_dataset = TensorDataset(torch.from_numpy(np.load(args.val_data_path)).float(), torch.from_numpy(np.load(args.val_target_path)).float())
+    test_dataset = TensorDataset(torch.from_numpy(np.load(args.test_data_path)).float(), torch.from_numpy(np.load(args.test_target_path)).float())
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_loader = DataLoader(val_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers)
     test_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=args.num_workers)
