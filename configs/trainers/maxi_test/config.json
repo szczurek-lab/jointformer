@@ -3,7 +3,7 @@
   "enable_ddp": false,
   "dtype": "bfloat16",
   "eval_only": false,
-  "max_iters": 1000,
+  "max_iters": 10000,
   "max_epochs": null,
   "batch_size": 2,
   "learning_rate": 6e-4,

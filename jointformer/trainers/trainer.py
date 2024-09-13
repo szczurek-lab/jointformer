@@ -417,6 +417,20 @@ class Trainer:
             device = self.device)
         samples = self.tokenizer.decode(samples)
         return samples
+    
+    def add_logger(self, logger):
+        self.additional_logger = logger
+
+    def log(self, iters, loss, task, lr, time_, mfu):
+        console.info(f"Iter: {iters} -- Loss: {loss:.6f} -- Task: {task} -- LR: {lr:.6f} -- Time: {time_:.2f} -- MFU: {mfu:.2f}")
+        self.additional_logger.log({
+            "Iteration": iters,
+            "Loss": loss,
+            "Task": task,
+            "Learning Rate": lr,
+            "Time (ms)": time_,
+            "MFU": mfu
+        })
 
     def train(self) -> None:
         
@@ -427,9 +441,10 @@ class Trainer:
         self._parallelize()
         self._init_data_loaders()
 
-        if self.logger is not None and self.master_process:
-            self.logger.init_run()
-            self.logger.watch_model(self.model)
+        for logger in (self.logger, self.additional_logger):
+            if logger is not None and self.master_process:
+                logger.init_run()
+                logger.watch_model(self.model)
 
         inputs = self.get_training_batch()
         t0 = time.time()
@@ -476,11 +491,7 @@ class Trainer:
                 lossf = loss.item() * self.gradient_accumulation_steps
                 if local_iter_num >= 5:  # let the training loop settle a bit
                     self._running_mfu = 0.0
-                    console.info(
-                        f"iter {self._iter_num}: loss {lossf:.6f} on {inputs['task']} task, lr {self._learning_rate:.6f},"
-                        + 
-                        f" time {dt * 1000:.2f}ms, mfu {self._running_mfu * 100:.2f}%"
-                        )
+                    self.log(self._iter_num, lossf, inputs['task'], self._learning_rate, dt * 1000, self._running_mfu * 100)
                     if self.save_snapshot:
                         self._save_ckpt(SNAPSHOT_FILENAME)
             self._iter_num += 1

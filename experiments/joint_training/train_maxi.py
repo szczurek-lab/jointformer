@@ -1,4 +1,4 @@
-import os, logging, sys, wandb
+import os, logging, sys, wandb, json, time
 
 import torch.distributed as dist
 
@@ -18,6 +18,7 @@ from jointformer.configs.trainer import TrainerConfig
 from jointformer.configs.logger import LoggerConfig
 
 from jointformer.utils.datasets.auto import AutoDataset
+from jointformer.utils.loggers.wandb import WandbLogger
 from jointformer.utils.tokenizers.auto import AutoTokenizer
 from jointformer.models.auto import AutoModel
 from jointformer.utils.loggers.auto import AutoLogger
@@ -43,9 +44,7 @@ PATH_TO_LOGGER_CONFIG = f"{REPOSITORY_DIR}/configs/loggers/maxi"
 
 DEFAULT_MODEL_SEED_ARRAY = 1337
 
-@record
-def main():
-    
+def setup_default_logging():
     console = logging.getLogger(__file__)
     logging.basicConfig(
         level=logging.INFO,
@@ -55,6 +54,17 @@ def main():
         datefmt='%Y-%m-%d %H:%M:%S',
     )
     logging.captureWarnings(True)
+    return console
+
+def get_add_logger() -> WandbLogger: 
+    additional_logger = WandbLogger(enable_logging=True, user="maximilian-armuss-tum", project="jointformer-training", resume="allow", watch=True, watch_freq=100, display_name="Observe Loss")
+    additional_logger.set_run_id()
+    return additional_logger
+
+@record
+def main():
+    console = setup_default_logging()
+    additional_logger = get_add_logger()
 
     dataset_config = DatasetConfig.from_config_file(PATH_TO_DATASET_CONFIG)
     tokenizer_config = TokenizerConfig.from_config_file(PATH_TO_TOKENIZER_CONFIG)
@@ -68,12 +78,11 @@ def main():
     model = AutoModel.from_config(model_config)
     logger = AutoLogger.from_config(logger_config) if logger_config else None
 
-    dump_configs(OUTPUT_DIR, dataset_config, tokenizer_config, model_config, trainer_config, logger_config) # Store configs, within the out_dir
+    dump_configs(OUTPUT_DIR, dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
     if logger is not None:
-        logger.store_configs(dataset_config, tokenizer_config, model_config, trainer_config, logger_config) # Store configs, within the logger object
+        logger.store_configs(dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
 
     init_ddp(trainer_config.enable_ddp)
-    print(trainer_config.batch_size)
     model.update_batch_size(trainer_config.batch_size)
     trainer = Trainer(
         out_dir=OUTPUT_DIR,
@@ -83,7 +92,9 @@ def main():
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         tokenizer=tokenizer,
-        logger=logger)
+        logger=None)
+    trainer.add_logger(additional_logger)
+    
     try:
         trainer.resume_snapshot()
         console.info("Resumed Snapshot")
@@ -102,6 +113,7 @@ def main():
     trainer.train()
     trainer._save_ckpt(MODEL_CHECKPOINT)
     end_ddp(trainer_config.enable_ddp)
+    additional_logger.finish()
 
 
 if __name__ == "__main__":
@@ -115,3 +127,4 @@ if __name__ == "__main__":
         logging.critical(e, exc_info=True)
 
     print(open(os.path.join(REPOSITORY_DIR, "run.log"), "r").read())
+    
