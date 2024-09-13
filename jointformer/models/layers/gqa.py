@@ -29,6 +29,11 @@ class GroupedQueryAttention(nn.Module):
         self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
 
 
+    def update_batch_size(self, batch_size: int) -> None:
+        self.batch_size = batch_size
+        self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=self.batch_size, kv_head_dim=self.kv_head_dim)
+        
+
     def handle_caching(self, x: torch.Tensor, next_token_only: bool, in_seq_len: int):
         q = self.q_proj.forward(x)
         if not next_token_only:

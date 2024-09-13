@@ -21,6 +21,6 @@ class TransformerLayer(nn.Module):
         return x
 
     def update_batch_size(self, batch_size: int) -> None:
-        self.attention_layer.batch_size = batch_size
+        self.attention_layer.update_batch_size(batch_size)
         
         
