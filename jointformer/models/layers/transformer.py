@@ -15,12 +15,15 @@ class TransformerLayer(nn.Module):
         self.attention_layer_normalization = RMSNorm(embedding_dim, layer_norm_eps)
         self.feed_forward_normalization = RMSNorm(embedding_dim, layer_norm_eps)
         
-    def forward(self, x: torch.Tensor, is_causal: bool, mask: torch.Tensor = None, next_token_only: bool = False) -> torch.Tensor:
-        x = x + self.attention_layer(x=self.attention_layer_normalization(x), next_token_only=next_token_only)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.attention_layer(x=self.attention_layer_normalization(x))
         x = x + self.feed_forward(self.feed_forward_normalization(x))
         return x
 
     def update_batch_size(self, batch_size: int) -> None:
         self.attention_layer.update_batch_size(batch_size)
         
+    def update_training_mode(self, mode: bool) -> None:
+        self.train(mode)
+        self.attention_layer.update_training_mode(mode)      
         

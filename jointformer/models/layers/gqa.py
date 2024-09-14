@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from einops import einsum, rearrange
+from typing import Tuple
 
 from jointformer.models.layers.rotary import RotaryPositionalEmbedding
 from jointformer.models.layers.kv_cache import KVCache
@@ -10,6 +11,7 @@ from jointformer.models.layers.kv_cache import KVCache
 class GroupedQueryAttention(nn.Module):
     def __init__(self, embedding_dim: int, num_q_heads: int, group_size:int, bias: bool, dropout: float, max_seq_len: int, batch_size: int):
         super().__init__()
+        self.training_running = False
         self.embedding_dim = embedding_dim
         self.num_q_heads = num_q_heads
         self.group_size = group_size
@@ -33,16 +35,28 @@ class GroupedQueryAttention(nn.Module):
         self.batch_size = batch_size
         self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=self.batch_size, kv_head_dim=self.kv_head_dim)
         
-
-    def handle_caching(self, x: torch.Tensor, next_token_only: bool, in_seq_len: int):
-        q = self.q_proj.forward(x)
-        if not next_token_only:
-            k = self.k_proj.forward(x)
-            v = self.v_proj.forward(x)
-            return q, k, v
+    
+    def update_training_mode(self, mode: bool) -> None:
+        # self.train() is set to False when evalutaing mid-training, which is why self.training_running is used here
+        self.training_running = mode
         
-        tokens_not_in_cache: int = in_seq_len - self.kv_cache.current_length
-        assert tokens_not_in_cache > 0, f"Unusual cache input detected! \nCache seq_len > Input seq_len! \nCurrently cached seq_len: {self.kv_cache.current_length}. \nInput tensor seq_len: {in_seq_len}."
+        
+    def forward_qkv(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        q = self.q_proj.forward(x)
+        k = self.k_proj.forward(x)
+        v = self.v_proj.forward(x)
+        return q, k, v
+        
+    def handle_caching(self, x: torch.Tensor, in_seq_len: int):
+        if self.training_running:
+            return self.forward_qkv(x)
+        
+
+        
+        # Else, in_seq_len == self.kv_cache.current_length + 1
+        # Chop off topmost row of x
+        # Project it with to k & v
+        # Update cache
         
         new_seq_entries = x[:, self.kv_cache.current_length:, :]
         kx = self.k_proj.forward(new_seq_entries)
@@ -52,7 +66,7 @@ class GroupedQueryAttention(nn.Module):
         return q, k, v
         
 
-    def forward(self, x: torch.Tensor, next_token_only: bool) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Performs grouped query attention.
         Code inspired by [https://github.com/fkodom/grouped-query-attention-pytorch/blob/main/grouped_query_attention_pytorch/attention.py]
@@ -65,11 +79,11 @@ class GroupedQueryAttention(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, embedding_dim)
         """
-
+        
         in_batch_size, seq_len, _ = x.shape
 
         # Saving computations by caching, not caching when in training mode
-        q, k, v = self.handle_caching(x, next_token_only, seq_len)
+        q, k, v = self.handle_caching(x, seq_len)
 
         # Rearranging linear projection to fit attention calculation with multiple heads & swapping seq_len with num_heads for more efficient computation
         q = rearrange(q, 'b n (h d) -> b h n d', h=self.num_q_heads)

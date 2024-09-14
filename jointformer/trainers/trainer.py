@@ -426,10 +426,8 @@ class Trainer:
         self.additional_logger.log({
             "Iteration": iters,
             "Loss": loss,
-            "Task": task,
             "Learning Rate": lr,
             "Time (ms)": time_,
-            "MFU": mfu
         })
 
     def train(self) -> None:

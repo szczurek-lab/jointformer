@@ -1,15 +1,13 @@
-import os, logging, sys, wandb, json, time
+import os, logging, sys
 
 import torch.distributed as dist
 
 from socket import gethostname
+from torch.distributed.elastic.multiprocessing.errors import record
 
 top_level_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 sys.path.append(top_level_folder)
 print(f"Appended {top_level_folder} to PATH.")
-
-
-from torch.distributed.elastic.multiprocessing.errors import record
 
 from jointformer.configs.dataset import DatasetConfig
 from jointformer.configs.tokenizer import TokenizerConfig
@@ -18,15 +16,16 @@ from jointformer.configs.trainer import TrainerConfig
 from jointformer.configs.logger import LoggerConfig
 
 from jointformer.utils.datasets.auto import AutoDataset
-from jointformer.utils.loggers.wandb import WandbLogger
 from jointformer.utils.tokenizers.auto import AutoTokenizer
-from jointformer.models.auto import AutoModel
 from jointformer.utils.loggers.auto import AutoLogger
-
-from jointformer.trainers.trainer import Trainer
-
+from jointformer.utils.loggers.wandb import WandbLogger
 from jointformer.utils.runtime import set_seed, create_output_dir, dump_configs
 from jointformer.utils.ddp import init_ddp, end_ddp
+
+from jointformer.models.auto import AutoModel
+from jointformer.models.jointformer import Jointformer
+
+from jointformer.trainers.trainer import Trainer
 
 
 REPOSITORY_DIR = "/home/maxi/code/jointformer"
@@ -75,7 +74,7 @@ def main():
     train_dataset = AutoDataset.from_config(dataset_config, split='train', data_dir=DATA_DIR)
     val_dataset = AutoDataset.from_config(dataset_config, split='val', data_dir=DATA_DIR)
     tokenizer = AutoTokenizer.from_config(tokenizer_config)
-    model = AutoModel.from_config(model_config)
+    model: Jointformer = AutoModel.from_config(model_config)
     logger = AutoLogger.from_config(logger_config) if logger_config else None
 
     dump_configs(OUTPUT_DIR, dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
@@ -84,6 +83,7 @@ def main():
 
     init_ddp(trainer_config.enable_ddp)
     model.update_batch_size(trainer_config.batch_size)
+    model.update_training_mode(True)
     trainer = Trainer(
         out_dir=OUTPUT_DIR,
         seed=DEFAULT_MODEL_SEED_ARRAY,
@@ -94,6 +94,7 @@ def main():
         tokenizer=tokenizer,
         logger=None)
     trainer.add_logger(additional_logger)
+    
     
     try:
         trainer.resume_snapshot()

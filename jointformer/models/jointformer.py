@@ -85,14 +85,12 @@ class Jointformer(Transformer, TrainableModel):
         
         if task == 'generation':
             _is_causal = True
-            _attention_mask = None
         elif task in ['physchem', 'prediction', 'mlm']:
             _is_causal = False
-            _attention_mask = attention_mask
         else:
             raise ValueError('Variable `task` must be either `generation`, `mlm`, `prediction` or `physchem`. Passed value: {}'.format(task))
         
-        outputs = super().forward(input_ids=input_ids, attention_mask=_attention_mask, is_causal=_is_causal, next_token_only=next_token_only)
+        outputs = super().forward(input_ids=input_ids)
         cls_embeddings = self._get_cls_embeddings(outputs['embeddings'])
         lm_embeddings = self._get_lm_embeddings(outputs['embeddings'], next_token_only)
 
@@ -252,6 +250,10 @@ class Jointformer(Transformer, TrainableModel):
 
     def update_batch_size(self, batch_size: int) -> None:
         super().update_batch_size(batch_size)
+
+    def update_training_mode(self, mode: bool) -> None:
+        self.train(mode)
+        super().update_training_mode(mode)
 
     @classmethod
     def from_config(cls, config):

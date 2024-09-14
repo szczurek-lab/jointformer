@@ -50,7 +50,7 @@ class Transformer(nn.Module):
         #assert False, (self.token_embedding, input_ids)
         x = self.token_embedding(input_ids)
         for _, layer in enumerate(self.layers):
-            x = layer(x, is_causal=is_causal, mask=attention_mask, next_token_only=next_token_only)    
+            x = layer(x)    
         x = self.layer_norm(x)
         return ModelOutput(embeddings=x, attention_mask=attention_mask)
 
@@ -103,3 +103,7 @@ class Transformer(nn.Module):
     def update_batch_size(self, batch_size: int) -> None:
         for layer in self.layers: 
             layer.update_batch_size(batch_size)
+
+    def update_training_mode(self, mode: bool) -> None:
+        for layer in self.layers: 
+            layer.update_training_mode(mode)
