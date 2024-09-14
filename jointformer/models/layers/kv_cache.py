@@ -4,6 +4,7 @@ from torch import nn
 from typing import Tuple
 from enum import Enum, auto
 
+
 class Modes(Enum):
     AUTOREGRESSIVE = auto()
     PREFILL = auto()
@@ -26,37 +27,37 @@ class KVCache(nn.Module):
     
     def size(self, dim: int) -> int:
         return self.shape[dim]
-    
-         
+
+
     def get_kv(self) -> Tuple[torch.Tensor, torch.Tensor]:
         return self.k_cache[:, :self.current_length, :], self.v_cache[:, :self.current_length, :]      
-    
-    
+
+
     def set_mode(self, mode: Modes) -> None:
-        self.mode = True
-    
-    
-    def check_format(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
-        if self.mode == Modes.PREFILL:
-            assert self.current_length == 0, ""
-            # Add stuff
-            return
+        self.mode = mode
+
+
+    def _update(self, kx: torch.Tensor, vx: torch.Tensor) -> int:
         assert kx.shape == vx.shape, "Key and value projections differ in size!"
         assert all(kx.size(dim) == self.size(dim) for dim in (0, 2)), f"Wrong input format! First and last dimension MUST match! Shape: {kx.shape}. KV-Cache Shape: {self.shape}."
-        assert kx.size(1) == 1, f"Cache is in autoregressive mode but received more than one input! Input sequence length: {kx.size(1)}"
-
-    
-    def prefill_kv(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
-        self.check_format(kx, vx)
-
-    def update_kv(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
-        self.check_format(kx, vx)
-        return 
-    
-        new_len = self.current_length + in_seq_len
-        assert new_len <= self.max_seq_len, "KV-Cache overflow!"
+        seq_len = kx.size(1)
+        new_len = self.current_length + seq_len
+        assert new_len <= self.size(1), "Cache overflow!"
         self.k_cache[:, self.current_length:new_len, :] = kx
         self.v_cache[:, self.current_length:new_len, :] = vx
-        return
-    
+        self.current_length = new_len
+        
+
+    def prefill_kv(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
+        assert self.mode == Modes.PREFILL, "'prefill_kv()' called while cache is not in prefill mode"
+        assert self.current_length == 0, "Tried prefilling non-empty cache"
+        self._update(kx, vx)
+        # Model can be prefilled once and will go into autoregressive mode then
+        self.set_mode(Modes.AUTOREGRESSIVE)
+
+
+    def update_kv(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
+        assert self.mode == Modes.AUTOREGRESSIVE, "'update_kv()' called while cache is not in autoregressive mode"
+        assert kx.size(1) == 1, f"Cache is in autoregressive mode but received input of sequence length {kx.size(1)} > 1 !"
+        self._update(kx, vx)
     
