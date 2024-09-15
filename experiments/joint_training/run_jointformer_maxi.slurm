@@ -20,14 +20,9 @@
 #SBATCH --mail-type=fail                                    
 #SBATCH --mail-user=maximilian.armuss@helmholtz-munich.de
 
-#SBATCH --nice=1000                                        
+#SBATCH --nice=1000                              
 #SBATCH --constraint=gpu_tesla_A100                        
 
+conda run python -m pip install -r requirements.txt
 
-source $HOME/.bashrc
-
-python -m pip install pipenv
-pipenv install .
-pipenv run python -m pip install -r requirements.txt
-
-srun pipenv run python experiments/joint_training/train_maxi.py --path_to_repo_dir . --path_to_out_dir ~/results
+srun conda run python experiments/joint_training/train_maxi.py --path_to_repo_dir . --path_to_out_dir ~/results
