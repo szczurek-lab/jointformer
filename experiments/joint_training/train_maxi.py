@@ -1,4 +1,4 @@
-import os, logging, sys
+import os, logging, sys, argparse
 
 import torch.distributed as dist
 
@@ -28,20 +28,15 @@ from jointformer.models.jointformer import Jointformer
 from jointformer.trainers.trainer import Trainer
 
 
-REPOSITORY_DIR = "/home/maxi/code/jointformer"
-OUT_DIR_BASE = "/home/maxi/code/jf-data"
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path_to_repo_dir", "-r", type=str, nargs='?', required=True)
+    parser.add_argument("--path_to_out_dir", "-o", type=str, nargs='?', required=True)
+    args = parser.parse_args()
+    if not os.path.exists(args.path_to_out_dir):
+        os.makedirs(args.path_to_out_dir)
+    return args
 
-MODEL_CHECKPOINT = f"{OUT_DIR_BASE}/ckpt.pt"
-DATA_DIR = f"{OUT_DIR_BASE}/data"
-OUTPUT_DIR = f"{OUT_DIR_BASE}/out-train"
-
-PATH_TO_DATASET_CONFIG = f"{REPOSITORY_DIR}/configs/datasets/guacamol/unsupervised"
-PATH_TO_TOKENIZER_CONFIG = f"{REPOSITORY_DIR}/configs/tokenizers/smiles_separate_task_token"
-PATH_TO_MODEL_CONFIG = f"{REPOSITORY_DIR}/configs/models/jointformer_separate_task_token"
-PATH_TO_TRAINER_CONFIG = f"{REPOSITORY_DIR}/configs/trainers/maxi_test"
-PATH_TO_LOGGER_CONFIG = f"{REPOSITORY_DIR}/configs/loggers/maxi"
-
-DEFAULT_MODEL_SEED_ARRAY = 1337
 
 def setup_default_logging():
     console = logging.getLogger(__file__)
@@ -55,77 +50,78 @@ def setup_default_logging():
     logging.captureWarnings(True)
     return console
 
-def get_add_logger() -> WandbLogger: 
-    additional_logger = WandbLogger(enable_logging=True, user="maximilian-armuss-tum", project="jointformer-training", resume="allow", watch=True, watch_freq=100, display_name="Observe Loss")
-    additional_logger.set_run_id()
-    return additional_logger
 
 @record
-def main():
-    console = setup_default_logging()
-    additional_logger = get_add_logger()
+def main(seed, repo_dir, out_dir):
+    model_ckpt = f"{out_dir}/ckpt.pt"
+    data_dir = f"{out_dir}/data"
 
-    dataset_config = DatasetConfig.from_config_file(PATH_TO_DATASET_CONFIG)
-    tokenizer_config = TokenizerConfig.from_config_file(PATH_TO_TOKENIZER_CONFIG)
-    model_config = ModelConfig.from_config_file(PATH_TO_MODEL_CONFIG)
-    trainer_config = TrainerConfig.from_config_file(PATH_TO_TRAINER_CONFIG)
-    logger_config = LoggerConfig.from_config_file(PATH_TO_LOGGER_CONFIG) if PATH_TO_LOGGER_CONFIG else None
+    dataset_config = DatasetConfig.from_config_file(f"{repo_dir}/configs/datasets/guacamol/unsupervised")
+    tokenizer_config = TokenizerConfig.from_config_file(f"{repo_dir}/configs/tokenizers/smiles_separate_task_token")
+    model_config = ModelConfig.from_config_file(f"{repo_dir}/configs/models/jointformer_separate_task_token")
+    trainer_config = TrainerConfig.from_config_file(f"{repo_dir}/configs/trainers/maxi_test")
+    logger_config = LoggerConfig.from_config_file(f"{repo_dir}/configs/loggers/maxi")
 
-    train_dataset = AutoDataset.from_config(dataset_config, split='train', data_dir=DATA_DIR)
-    val_dataset = AutoDataset.from_config(dataset_config, split='val', data_dir=DATA_DIR)
+    train_dataset = AutoDataset.from_config(dataset_config, split='train', data_dir=data_dir)
+    val_dataset = AutoDataset.from_config(dataset_config, split='val', data_dir=data_dir)
     tokenizer = AutoTokenizer.from_config(tokenizer_config)
     model: Jointformer = AutoModel.from_config(model_config)
     logger = AutoLogger.from_config(logger_config) if logger_config else None
 
-    dump_configs(OUTPUT_DIR, dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
+    dump_configs(out_dir, dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
     if logger is not None:
         logger.store_configs(dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
 
     init_ddp(trainer_config.enable_ddp)
+    
     model.update_batch_size(trainer_config.batch_size)
     model.update_training_mode(True)
+    
     trainer = Trainer(
-        out_dir=OUTPUT_DIR,
-        seed=DEFAULT_MODEL_SEED_ARRAY,
+        out_dir=out_dir,
+        seed=seed,
         config=trainer_config,
         model=model,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         tokenizer=tokenizer,
-        logger=None)
-    trainer.add_logger(additional_logger)
+        logger=logger)
     
-    
+    console = setup_default_logging()
     try:
         trainer.resume_snapshot()
         console.info("Resumed Snapshot")
     except FileNotFoundError:
-        if MODEL_CHECKPOINT:
+        if model_ckpt:
             try:
-                trainer.resume_from_file(MODEL_CHECKPOINT)
-                console.info(f"Resuming pre-trained model from '{MODEL_CHECKPOINT}'")
+                trainer.resume_from_file(model_ckpt)
+                console.info(f"Resuming pre-trained model from '{model_ckpt}'")
             except FileNotFoundError:
-                console.info(f"No model checkpoint at '{MODEL_CHECKPOINT}'")
+                console.info(f"No model checkpoint at '{model_ckpt}'")
         else:
             console.info("Training from scratch")
     if trainer.is_ddp:
         dist.barrier() # Ensure all processes are ready before training
         
     trainer.train()
-    trainer._save_ckpt(MODEL_CHECKPOINT)
+    trainer._save_ckpt(model_ckpt)
     end_ddp(trainer_config.enable_ddp)
-    additional_logger.finish()
+    logger.finish()
 
 
 if __name__ == "__main__":
-    os.chdir(REPOSITORY_DIR)
-    create_output_dir(os.path.join(OUTPUT_DIR, f"seed_{DEFAULT_MODEL_SEED_ARRAY}"))
-    set_seed(DEFAULT_MODEL_SEED_ARRAY)
+    args = parse_args()
+    repo_dir = args.path_to_repo_dir
+    out_dir = args.path_to_out_dir
+    os.chdir(repo_dir)
+    seed = 1337
+    set_seed(seed)
+    create_output_dir(os.path.join(out_dir, f"seed_{seed}"))
     try:
-        main()
-        logging.info(f"Completed seed {DEFAULT_MODEL_SEED_ARRAY}")
+        main(seed, repo_dir, out_dir)
+        logging.info(f"Completed seed {seed}")
     except Exception as e:
         logging.critical(e, exc_info=True)
 
-    print(open(os.path.join(REPOSITORY_DIR, "run.log"), "r").read())
+    print(open(os.path.join(repo_dir, "run.log"), "r").read())
     

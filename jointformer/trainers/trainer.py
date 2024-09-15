@@ -418,13 +418,9 @@ class Trainer:
         samples = self.tokenizer.decode(samples)
         return samples
     
-    def add_logger(self, logger):
-        self.additional_logger = logger
-
     def log(self, iters, loss, task, lr, time_, mfu):
         console.info(f"Iter: {iters} -- Loss: {loss:.6f} -- Task: {task} -- LR: {lr:.6f} -- Time: {time_:.2f} -- MFU: {mfu:.2f}")
-        self.additional_logger.log({
-            "Iteration": iters,
+        self.logger.log({
             "Loss": loss,
             "Learning Rate": lr,
             "Time (ms)": time_,
@@ -439,10 +435,9 @@ class Trainer:
         self._parallelize()
         self._init_data_loaders()
 
-        for logger in (self.logger, self.additional_logger):
-            if logger is not None and self.master_process:
-                logger.init_run()
-                logger.watch_model(self.model)
+        if self.logger is not None and self.master_process:
+            self.logger.init_run()
+            self.logger.watch_model(self.model)
 
         inputs = self.get_training_batch()
         t0 = time.time()
