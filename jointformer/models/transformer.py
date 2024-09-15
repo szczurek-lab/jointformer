@@ -42,9 +42,7 @@ class Transformer(nn.Module):
     def forward(
             self,
             input_ids: torch.Tensor,
-            is_causal: bool,
             attention_mask: torch.Tensor,
-            next_token_only: bool,
             **kwargs
     ):
         #assert False, (self.token_embedding, input_ids)

@@ -37,6 +37,10 @@ class KVCache(nn.Module):
         self.mode = mode
 
 
+    def is_in_autoregressive_mode(self) -> bool:
+        return self.mode == Modes.AUTOREGRESSIVE
+
+
     def _update(self, kx: torch.Tensor, vx: torch.Tensor) -> int:
         assert kx.shape == vx.shape, "Key and value projections differ in size!"
         assert all(kx.size(dim) == self.size(dim) for dim in (0, 2)), f"Wrong input format! First and last dimension MUST match! Shape: {kx.shape}. KV-Cache Shape: {self.shape}."
@@ -48,15 +52,14 @@ class KVCache(nn.Module):
         self.current_length = new_len
         
 
-    def prefill_kv(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
+    def prefill(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
         assert self.mode == Modes.PREFILL, "'prefill_kv()' called while cache is not in prefill mode"
         assert self.current_length == 0, "Tried prefilling non-empty cache"
         self._update(kx, vx)
-        # Model can be prefilled once and will go into autoregressive mode then
         self.set_mode(Modes.AUTOREGRESSIVE)
 
 
-    def update_kv(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
+    def update(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
         assert self.mode == Modes.AUTOREGRESSIVE, "'update_kv()' called while cache is not in autoregressive mode"
         assert kx.size(1) == 1, f"Cache is in autoregressive mode but received input of sequence length {kx.size(1)} > 1 !"
         self._update(kx, vx)

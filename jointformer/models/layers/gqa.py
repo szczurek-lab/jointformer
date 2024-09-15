@@ -47,22 +47,20 @@ class GroupedQueryAttention(nn.Module):
         v = self.v_proj.forward(x)
         return q, k, v
         
-    def handle_caching(self, x: torch.Tensor, in_seq_len: int):
+        
+    def handle_caching(self, x: torch.Tensor):
+        # TODO: Check for device! (Look at GPT-Fast!)
         if self.training_running:
             return self.forward_qkv(x)
-        
-
-        
-        # Else, in_seq_len == self.kv_cache.current_length + 1
-        # Chop off topmost row of x
-        # Project it with to k & v
-        # Update cache
-        
-        new_seq_entries = x[:, self.kv_cache.current_length:, :]
-        kx = self.k_proj.forward(new_seq_entries)
-        vx = self.v_proj.forward(new_seq_entries)
-        self.kv_cache.update_kv(kx=kx, vx=vx)
-        k, v = self.kv_cache.get_kv()
+        if self.kv_cache.is_in_autoregressive_mode():
+            cache_entry = x[:, len(self.kv_cache):, :]
+            q = self.q_proj.forward(x)
+            kx = self.k_proj.forward(cache_entry)
+            vx = self.v_proj.forward(cache_entry)
+            self.kv_cache.update(kx=kx, vx=vx)
+            k, v = self.kv_cache.get_kv()
+        q, k, v = self.forward_qkv(x)
+        self.kv_cache.prefill(kx=k, vx=v)
         return q, k, v
         
 
@@ -79,12 +77,12 @@ class GroupedQueryAttention(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, seq_len, embedding_dim)
         """
-        
+        assert x is not None, "Input tensor was None"
         in_batch_size, seq_len, _ = x.shape
 
         # Saving computations by caching, not caching when in training mode
-        q, k, v = self.handle_caching(x, seq_len)
-
+        q, k, v = self.handle_caching(x)
+        
         # Rearranging linear projection to fit attention calculation with multiple heads & swapping seq_len with num_heads for more efficient computation
         q = rearrange(q, 'b n (h d) -> b h n d', h=self.num_q_heads)
         k = rearrange(k, 'b s (h d) -> b h s d', h=self.num_kv_heads)
@@ -97,7 +95,7 @@ class GroupedQueryAttention(nn.Module):
         attn_tmp = einsum(q, k, "b g h n d, b h s d -> b g h n s")
         scaled_attn_tmp = attn_tmp / math.sqrt(self.q_head_dim)
         scores = torch.softmax(scaled_attn_tmp, dim=-1)
-        scores = torch.dropout(scores, self.dropout, train=True)
+        scores = torch.dropout(scores, self.dropout, train=self.training_running)
               
         # Weighing value matrix with calculated attention scores & converting dimensions back to original format
         val_scores = einsum(scores, v, "b g h n s, b h s d -> b g h n d")
@@ -110,16 +108,4 @@ class GroupedQueryAttention(nn.Module):
         # Projecting back into original embedding dimension for the next layer
         y = self.out(concat_heads)
         return y
-    
-    
-if __name__ == "__main__":
-    emb_dim = 512
-    num_q_heads = 8
-    group_size = 4
-    in_batch_size = 1
-    seq_len = 256
-    
-    gqa = GroupedQueryAttention(emb_dim, num_q_heads, group_size, False, 0, 0)
-    ex1 = torch.ones((in_batch_size, seq_len, emb_dim))
-    att = gqa.forward(ex1, None, None)
     

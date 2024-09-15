@@ -90,7 +90,7 @@ class Jointformer(Transformer, TrainableModel):
         else:
             raise ValueError('Variable `task` must be either `generation`, `mlm`, `prediction` or `physchem`. Passed value: {}'.format(task))
         
-        outputs = super().forward(input_ids=input_ids)
+        outputs = super().forward(input_ids=input_ids, attention_mask=attention_mask)
         cls_embeddings = self._get_cls_embeddings(outputs['embeddings'])
         lm_embeddings = self._get_lm_embeddings(outputs['embeddings'], next_token_only)
 
