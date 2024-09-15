@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=jointformer-training                              
-#SBATCH --output output-%x.log                              
-#SBATCH --error error-%x.log                                 
+#SBATCH --output logs/output-%x.log                              
+#SBATCH --error logs/error-%x.log                                 
 
 #SBATCH -p gpu_p
 #SBATCH --qos gpu_long
@@ -21,7 +21,6 @@
 #SBATCH --mail-user=maximilian.armuss@helmholtz-munich.de
 
 #SBATCH --nice=1000                              
-#SBATCH --constraint=gpu_tesla_A100                        
 
 conda run python -m pip install -r requirements.txt
 

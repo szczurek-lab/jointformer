@@ -17,3 +17,4 @@ molecule-generation
 unimol_tools
 huggingface_hub
 einops
+torchvision

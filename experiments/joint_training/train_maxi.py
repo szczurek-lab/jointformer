@@ -1,4 +1,4 @@
-import os, logging, sys, argparse
+import os, logging, sys, argparse, time
 
 import torch.distributed as dist
 
@@ -42,7 +42,7 @@ def setup_default_logging():
     console = logging.getLogger(__file__)
     logging.basicConfig(
         level=logging.INFO,
-        filename=f'{os.environ.get("SLURM_JOB_NAME", "run")}.log',
+        filename=os.path.join("logs", f'{os.environ.get("SLURM_JOB_NAME", "run")}.log'),
         filemode='a',
         format=f'{gethostname()}, rank {int(os.environ.get("SLURM_PROCID", "0"))}: %(asctime)s %(name)s %(levelname)s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
@@ -102,10 +102,13 @@ def main(seed, repo_dir, out_dir):
             console.info("Training from scratch")
     if trainer.is_ddp:
         dist.barrier() # Ensure all processes are ready before training
-        
+    
+    start_time = time.time()
     trainer.train()
+    end_time = time.time()
     trainer._save_ckpt(model_ckpt)
     end_ddp(trainer_config.enable_ddp)
+    logger.log({"Execution Time (h)": (end_time - start_time)/3600})
     logger.finish()
 
 
@@ -122,6 +125,3 @@ if __name__ == "__main__":
         logging.info(f"Completed seed {seed}")
     except Exception as e:
         logging.critical(e, exc_info=True)
-
-    print(open(os.path.join(repo_dir, "run.log"), "r").read())
-    
