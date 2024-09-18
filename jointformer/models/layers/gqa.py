@@ -61,6 +61,13 @@ class GroupedQueryAttention(nn.Module):
         q, k, v = self.forward_qkv(x)
         self.kv_cache.prefill(kx=k, vx=v)
         return q, k, v
+    
+    
+    def mask(self, x: torch.Tensor) -> torch.Tensor:
+        seq_len = x.size(-1)
+        mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(x.device)
+        x = x.masked_fill(mask[None, None, None, :, :], float('-inf'))
+        return x
         
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -93,7 +100,8 @@ class GroupedQueryAttention(nn.Module):
         # Actual attention score calculation
         attn_tmp = einsum(q, k, "b g h n d, b h s d -> b g h n s")
         scaled_attn_tmp = attn_tmp / math.sqrt(self.q_head_dim)
-        scores = torch.softmax(scaled_attn_tmp, dim=-1)
+        scaled_masked_attn_tmp = self.mask(scaled_attn_tmp)
+        scores = torch.softmax(scaled_masked_attn_tmp, dim=-1)
         scores = torch.dropout(scores, self.dropout, train=self.training_running)
               
         # Weighing value matrix with calculated attention scores & converting dimensions back to original format
