@@ -9,7 +9,7 @@ from jointformer.models.layers.rotary import RotaryPositionalEmbedding
 from jointformer.models.layers.kv_cache import KVCache
 
 class GroupedQueryAttention(nn.Module):
-    def __init__(self, embedding_dim: int, num_q_heads: int, group_size:int, bias: bool, dropout: float, max_seq_len: int, batch_size: int):
+    def __init__(self, embedding_dim: int, num_q_heads: int, group_size:int, bias: bool, dropout: float, max_seq_len: int):
         super().__init__()
         self.training_running = False
         self.embedding_dim = embedding_dim
@@ -18,22 +18,20 @@ class GroupedQueryAttention(nn.Module):
         self.bias = bias
         self.dropout = dropout
         self.max_seq_len = max_seq_len
-        self.batch_size = batch_size
         self.q_head_dim = embedding_dim // num_q_heads
         self.kv_head_dim = embedding_dim // group_size
         self.num_kv_heads = num_q_heads // group_size
         assert num_q_heads % group_size == 0, f"num_heads % group_size == 0 must hold! num_heads: {num_q_heads}, group_size: {group_size}" 
         self.relative_embedding = RotaryPositionalEmbedding(self.q_head_dim)
-        self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=self.batch_size, kv_head_dim=self.kv_head_dim)
         self.q_proj = nn.Linear(self.embedding_dim, self.embedding_dim, bias=False)
         self.k_proj = nn.Linear(self.embedding_dim, self.kv_head_dim, bias=False)
         self.v_proj = nn.Linear(self.embedding_dim, self.kv_head_dim, bias=False)
         self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
+        self.kv_cache = ...
 
 
-    def update_batch_size(self, batch_size: int) -> None:
-        self.batch_size = batch_size
-        self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=self.batch_size, kv_head_dim=self.kv_head_dim)
+    def init_cache(self, batch_size: int) -> None:
+        self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=batch_size, kv_head_dim=self.kv_head_dim)
         
     
     def update_training_mode(self, mode: bool) -> None:
@@ -48,10 +46,11 @@ class GroupedQueryAttention(nn.Module):
         return q, k, v
         
         
-    def handle_caching(self, x: torch.Tensor):
+    def handle_caching(self, x: torch.Tensor, in_batch_size: int):
         # TODO: Check for device! (Look at GPT-Fast!)
         if self.training_running:
             return self.forward_qkv(x)
+        self.init_cache(batch_size=in_batch_size)
         if self.kv_cache.is_in_autoregressive_mode():
             cache_entry = x[:, len(self.kv_cache):, :]
             q = self.q_proj.forward(x)
@@ -81,7 +80,7 @@ class GroupedQueryAttention(nn.Module):
         in_batch_size, seq_len, _ = x.shape
 
         # Saving computations by caching, not caching when in training mode
-        q, k, v = self.handle_caching(x)
+        q, k, v = self.handle_caching(x, in_batch_size)
         
         # Rearranging linear projection to fit attention calculation with multiple heads & swapping seq_len with num_heads for more efficient computation
         q = rearrange(q, 'b n (h d) -> b h n d', h=self.num_q_heads)

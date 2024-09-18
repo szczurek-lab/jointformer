@@ -35,12 +35,11 @@ class Jointformer(Transformer, TrainableModel):
             num_prediction_tasks: int,
             num_physchem_tasks: Optional[int] = DEFAULT_NUM_PHYCHEM_TASKS,
             init_weights: bool = True,
-            tie_weights: bool = True,
-            batch_size: int = 1
+            tie_weights: bool = True
     ):
         super().__init__(
             vocab_size=vocab_size, max_seq_len=max_seq_len, embedding_dim=embedding_dim, embedding_hidden_dim=embedding_hidden_dim, attention_dropout=attention_dropout,
-            feed_forward_dropout=feed_forward_dropout, num_layers=num_layers, bias=bias, num_heads=num_heads, group_size=group_size, layer_norm_eps=layer_norm_eps, batch_size=batch_size
+            feed_forward_dropout=feed_forward_dropout, num_layers=num_layers, bias=bias, num_heads=num_heads, group_size=group_size, layer_norm_eps=layer_norm_eps
             )
         
         # Hardcoding all tasks into the model definition for easier serialization
@@ -248,11 +247,7 @@ class Jointformer(Transformer, TrainableModel):
     def load_pretrained(self, filename, device='cpu'):
         super().load_pretrained(filename, device=device)
 
-    def update_batch_size(self, batch_size: int) -> None:
-        super().update_batch_size(batch_size)
-
     def update_training_mode(self, mode: bool) -> None:
-        self.train(mode)
         super().update_training_mode(mode)
 
     @classmethod
@@ -261,7 +256,6 @@ class Jointformer(Transformer, TrainableModel):
             vocab_size=config.vocab_size,
             max_seq_len=config.max_seq_len,
             group_size=config.group_size,
-            batch_size=config.batch_size,
             embedding_dim=config.embedding_dim,
             embedding_hidden_dim=config.embedding_hidden_dim,
             attention_dropout=config.attention_dropout,

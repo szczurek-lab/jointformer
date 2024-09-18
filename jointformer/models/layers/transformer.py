@@ -8,9 +8,9 @@ from jointformer.models.layers.mlp import FeedForward
 
 class TransformerLayer(nn.Module):
 
-    def __init__(self, embedding_dim, embedding_hidden_dim, bias, attention_dropout, feed_forward_dropout, num_heads, group_size, max_seq_len, layer_norm_eps, batch_size):
+    def __init__(self, embedding_dim, embedding_hidden_dim, bias, attention_dropout, feed_forward_dropout, num_heads, group_size, max_seq_len, layer_norm_eps):
         super().__init__()
-        self.attention_layer = GroupedQueryAttention(embedding_dim, num_heads, group_size, bias, attention_dropout, max_seq_len, batch_size)
+        self.attention_layer = GroupedQueryAttention(embedding_dim, num_heads, group_size, bias, attention_dropout, max_seq_len)
         self.feed_forward = FeedForward(embedding_dim, embedding_hidden_dim, bias, feed_forward_dropout)
         self.attention_layer_normalization = RMSNorm(embedding_dim, layer_norm_eps)
         self.feed_forward_normalization = RMSNorm(embedding_dim, layer_norm_eps)
@@ -19,10 +19,7 @@ class TransformerLayer(nn.Module):
         x = x + self.attention_layer(x=self.attention_layer_normalization(x))
         x = x + self.feed_forward(self.feed_forward_normalization(x))
         return x
-
-    def update_batch_size(self, batch_size: int) -> None:
-        self.attention_layer.update_batch_size(batch_size)
-        
+    
     def update_training_mode(self, mode: bool) -> None:
         self.train(mode)
         self.attention_layer.update_training_mode(mode)      

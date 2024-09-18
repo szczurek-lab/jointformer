@@ -74,7 +74,6 @@ def main(seed, repo_dir, out_dir):
 
     init_ddp(trainer_config.enable_ddp)
     
-    model.update_batch_size(trainer_config.batch_size)
     model.update_training_mode(True)
     
     trainer = Trainer(
