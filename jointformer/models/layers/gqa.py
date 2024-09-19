@@ -53,6 +53,7 @@ class GroupedQueryAttention(nn.Module):
             self.init_cache(batch_size=in_batch_size)
             q, k, v = self.forward_qkv(x)
             self.kv_cache.prefill(kx=k, vx=v)
+            return q, k, v
         cache_entry = x[:, len(self.kv_cache):, :]
         q = self.q_proj.forward(x)
         kx = self.k_proj.forward(cache_entry)
