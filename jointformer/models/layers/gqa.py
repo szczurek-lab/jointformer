@@ -30,8 +30,8 @@ class GroupedQueryAttention(nn.Module):
         self.kv_cache = None
 
 
-    def init_cache(self, batch_size: int) -> None:
-        self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=batch_size, kv_head_dim=self.kv_head_dim)
+    def init_cache(self, batch_size: int, device: torch.device) -> None:
+        self.kv_cache = KVCache(max_seq_len=self.max_seq_len, batch_size=batch_size, kv_head_dim=self.kv_head_dim, device=device)
         
     
     def update_training_mode(self, mode: bool) -> None:
@@ -49,19 +49,19 @@ class GroupedQueryAttention(nn.Module):
     def handle_caching(self, x: torch.Tensor, in_batch_size: int):
         if self.training_running:
             return self.forward_qkv(x)
-        if self.kv_cache is None:
-            self.init_cache(batch_size=in_batch_size)
+        if self.kv_cache is None or x.size(1) <= len(self.kv_cache):
+            self.init_cache(batch_size=in_batch_size, device=x.device)
         if self.kv_cache.is_in_prefill_mode():
             q, k, v = self.forward_qkv(x)
             self.kv_cache.prefill(kx=k, vx=v)
             return q, k, v
+        assert x.size(1) > len(self.kv_cache), f"Input Tensor sequence length {x.size(1)} <= KV-Cache entries {len(self.kv_cache)}!"
         cache_entry = x[:, len(self.kv_cache):, :]
         q = self.q_proj.forward(x)
         kx = self.k_proj.forward(cache_entry)
         vx = self.v_proj.forward(cache_entry)
         k, v = self.kv_cache.update(kx=kx, vx=vx)
         return q, k, v
-        
     
     
     def mask(self, x: torch.Tensor) -> torch.Tensor:
@@ -86,7 +86,7 @@ class GroupedQueryAttention(nn.Module):
         """
         assert x is not None, "Input tensor was None"
         in_batch_size, seq_len, _ = x.shape
-
+        
         # Saving computations by caching, not caching when in training mode
         q, k, v = self.handle_caching(x, in_batch_size)
         

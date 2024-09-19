@@ -12,11 +12,11 @@ class Modes(Enum):
 
 class KVCache(nn.Module):
 
-    def __init__(self, batch_size: int, max_seq_len: int, kv_head_dim: int) -> None:
+    def __init__(self, batch_size: int, max_seq_len: int, kv_head_dim: int, device: torch.device) -> None:
         super().__init__()
         self.shape = (batch_size, max_seq_len, kv_head_dim)
-        self.register_buffer("k_cache", torch.zeros(self.shape))
-        self.register_buffer("v_cache", torch.zeros(self.shape))
+        self.register_buffer("k_cache", torch.zeros(self.shape).to(device))
+        self.register_buffer("v_cache", torch.zeros(self.shape).to(device))
         self.current_length = 0
         self.mode = Modes.PREFILL
         
@@ -61,7 +61,7 @@ class KVCache(nn.Module):
 
     def update(self, kx: torch.Tensor, vx: torch.Tensor) -> None:
         assert self.mode == Modes.AUTOREGRESSIVE, "'update_kv()' called while cache is not in autoregressive mode"
-        assert kx.size(1) == 1, f"Cache is in autoregressive mode but received input of sequence length {kx.size(1)} > 1 !"
+        assert kx.size(1) == 1, f"Cache is in autoregressive mode but received input of sequence length {kx.size(1)} != 1 !"
         self._update(kx, vx)
         return self.get_kv()
     
