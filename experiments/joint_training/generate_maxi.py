@@ -38,13 +38,12 @@ model_config = ModelConfig.from_config_file(PATH_TO_MODEL_CONFIG)
 model: Jointformer = AutoModel.from_config(model_config)
 
 # Cheating a bit here
-batch_size = 128
-model.update_batch_size(128)
 model.load_pretrained(PRETRAINED_JOINTFORMER_FILE)
 model.update_training_mode(False)
 
 temperature = 0.8
 top_k = 10
+batch_size = 64
 
 generator = model.to_guacamole_generator(tokenizer=tokenizer, batch_size=batch_size, temperature=temperature, top_k=top_k, device=device)
 out_smiles = generator.generate(number_samples=10)

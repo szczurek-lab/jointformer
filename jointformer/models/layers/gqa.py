@@ -49,14 +49,17 @@ class GroupedQueryAttention(nn.Module):
     def handle_caching(self, x: torch.Tensor, in_batch_size: int):
         if self.training_running:
             return self.forward_qkv(x)
-        if self.kv_cache is None:
+        if self.kv_cache.is_in_prefill_mode():
             self.init_cache(batch_size=in_batch_size)
-        q = self.q_proj.forward(x)
+            q, k, v = self.forward_qkv(x)
+            self.kv_cache.prefill(kx=k, vx=v)
         cache_entry = x[:, len(self.kv_cache):, :]
+        q = self.q_proj.forward(x)
         kx = self.k_proj.forward(cache_entry)
         vx = self.v_proj.forward(cache_entry)
         k, v = self.kv_cache.update(kx=kx, vx=vx)
         return q, k, v
+        
     
     
     def mask(self, x: torch.Tensor) -> torch.Tensor:
