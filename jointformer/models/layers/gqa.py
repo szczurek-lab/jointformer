@@ -27,7 +27,7 @@ class GroupedQueryAttention(nn.Module):
         self.k_proj = nn.Linear(self.embedding_dim, self.kv_head_dim, bias=False)
         self.v_proj = nn.Linear(self.embedding_dim, self.kv_head_dim, bias=False)
         self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
-        self.kv_cache = ...
+        self.kv_cache = None
 
 
     def init_cache(self, batch_size: int) -> None:
@@ -47,19 +47,15 @@ class GroupedQueryAttention(nn.Module):
         
         
     def handle_caching(self, x: torch.Tensor, in_batch_size: int):
-        # TODO: Check for device! (Look at GPT-Fast!)
         if self.training_running:
             return self.forward_qkv(x)
-        self.init_cache(batch_size=in_batch_size)
-        if self.kv_cache.is_in_autoregressive_mode():
-            cache_entry = x[:, len(self.kv_cache):, :]
-            q = self.q_proj.forward(x)
-            kx = self.k_proj.forward(cache_entry)
-            vx = self.v_proj.forward(cache_entry)
-            self.kv_cache.update(kx=kx, vx=vx)
-            k, v = self.kv_cache.get_kv()
-        q, k, v = self.forward_qkv(x)
-        self.kv_cache.prefill(kx=k, vx=v)
+        if self.kv_cache is None:
+            self.init_cache(batch_size=in_batch_size)
+        q = self.q_proj.forward(x)
+        cache_entry = x[:, len(self.kv_cache):, :]
+        kx = self.k_proj.forward(cache_entry)
+        vx = self.v_proj.forward(cache_entry)
+        k, v = self.kv_cache.update(kx=kx, vx=vx)
         return q, k, v
     
     
