@@ -336,9 +336,12 @@ class Trainer:
                 out[split]['perplexity'] = losses.mean().item() if torch.nan not in losses else torch.nan
 
         if hasattr(self.model, 'generate') and self.eval_generation:
+            samples = []
             for _ in range(self.eval_iters):
-                samples = []
+                fw_pass_0 = time.time()
                 samples.extend(self.generate())
+                fw_pass_1 = time.time()
+                self.logger.log({"Forward pass (ms)": (fw_pass_1-fw_pass_0)*1000})
             if self.logger:
                 self.logger.log_molecule_data(samples)
             is_valid_batch = [is_valid(sample) for sample in samples]
@@ -459,7 +462,10 @@ class Trainer:
                 if self.is_ddp:
                     self.model.require_backward_grad_sync = (micro_step == self.gradient_accumulation_steps - 1)  # in ddp mode, only sync grads at the last micro-step
                 with self.ctx:
+                    bw_pass_0 = time.time()
                     outputs = self.model.get_loss(**inputs)
+                    bw_pass_1 = time.time()
+                    self.logger.log({"Borward pass (ms)": (bw_pass_1-bw_pass_0)*1000})
                     loss = outputs["loss"] / self.gradient_accumulation_steps  # scale the loss to account for gradient accumulation
                 inputs = self.get_training_batch()  # async prefetch next batch
                 self.scaler.scale(loss).backward()  # backward pass, with gradient scaling if training in fp16
