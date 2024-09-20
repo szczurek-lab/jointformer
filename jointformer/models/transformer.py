@@ -15,7 +15,7 @@ class Transformer(nn.Module):
 
     def __init__(
             self, vocab_size: int, max_seq_len: int, embedding_dim: int, embedding_hidden_dim: int, attention_dropout: float,
-            feed_forward_dropout: float, num_layers: int, bias: int, num_heads: int, group_size: int, layer_norm_eps: float):
+            feed_forward_dropout: float, num_layers: int, bias: int, num_heads: int, layer_norm_eps: float):
         super().__init__()
         self.vocab_size = vocab_size
         self.max_seq_len = max_seq_len
@@ -26,14 +26,13 @@ class Transformer(nn.Module):
         self.num_layers = num_layers
         self.bias = bias
         self.num_heads = num_heads
-        self.group_size = group_size
         self.layer_norm_eps = layer_norm_eps
 
         self.token_embedding = nn.Embedding(self.vocab_size, self.embedding_dim)
         self.layers = nn.ModuleList([
             TransformerLayer(
                 self.embedding_dim, self.embedding_hidden_dim, self.bias, self.attention_dropout,
-                self.feed_forward_dropout, self.num_heads, self.group_size, self.max_seq_len, self.layer_norm_eps)
+                self.feed_forward_dropout, self.num_heads, self.max_seq_len, self.layer_norm_eps)
               for _ in range(self.num_layers)])
         self.layer_norm = RMSNorm(self.embedding_dim, self.layer_norm_eps)
 
@@ -41,12 +40,13 @@ class Transformer(nn.Module):
             self,
             input_ids: torch.Tensor,
             attention_mask: torch.Tensor,
+            is_causal: bool,
             **kwargs
     ):
         #assert False, (self.token_embedding, input_ids)
         x = self.token_embedding(input_ids)
         for _, layer in enumerate(self.layers):
-            x = layer(x)    
+            x = layer(x, attention_mask, is_causal)    
         x = self.layer_norm(x)
         return ModelOutput(embeddings=x, attention_mask=attention_mask)
 

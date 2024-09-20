@@ -8,7 +8,6 @@
   "layer_norm_eps": 1e-05,
   "max_seq_len": 128,
   "num_heads": 8,
-  "group_size": 2,
   "num_layers": 8,
   "vocab_size": 595,
   "prediction_task_type": "regression",
