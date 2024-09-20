@@ -2,7 +2,7 @@
   "logger_name": "wandb",
   "enable_logging": true,
   "user": "maximilian-armuss-tum",
-  "project": "jointformer-training-enhanced",
+  "project": "jointformer-training-main",
   "resume": "allow",
   "display_name": "Observe Loss",
   "watch": true,
