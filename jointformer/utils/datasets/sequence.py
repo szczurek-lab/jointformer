@@ -107,7 +107,7 @@ class SequentialDataset(BaseDataset):
     @classmethod
     def _from_filepath(
         cls,
-        root: str = None, 
+        data_dir: str = None, 
         data_filepath: str = None,
         target_filepath: Optional[str] = None,
         transform: Optional[Union[Callable, List]] = None,
@@ -120,9 +120,9 @@ class SequentialDataset(BaseDataset):
         """ Dowloads and loads the data and target from the specified file paths.
         """
         
-        if root is not None:
-            data_filepath = os.path.join(root, data_filepath)
-            target_filepath = os.path.join(root, target_filepath)
+        if data_dir is not None:
+            data_filepath = os.path.join(data_dir, data_filepath)
+            target_filepath = os.path.join(data_dir, target_filepath)
 
         if data_filepath is not None:
             data = cls._load_data(data_filepath)
@@ -142,7 +142,7 @@ class SequentialDataset(BaseDataset):
         )
 
     @classmethod
-    def from_config(cls, config: DatasetConfig, split: Optional[str] = None, seed: Optional[int] = None, root: str = None):
+    def from_config(cls, config: DatasetConfig, split: Optional[str] = None, seed: Optional[int] = None, data_dir: str = None):
         
         if split is None:
             split = config.split
@@ -163,7 +163,7 @@ class SequentialDataset(BaseDataset):
             raise ValueError("Provide a correct split value.")
 
         return cls._from_filepath(
-            root=root,
+            data_dir=data_dir,
             data_filepath = data_filepath,
             target_filepath = properties_filepath,
             transform=config.transform,
