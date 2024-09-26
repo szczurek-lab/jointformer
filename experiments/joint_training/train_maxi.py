@@ -24,6 +24,7 @@ from jointformer.utils.ddp import init_ddp, end_ddp
 
 from jointformer.models.auto import AutoModel
 from jointformer.models.jointformer import Jointformer
+from jointformer.models.transformer import Transformer
 
 from jointformer.trainers.trainer import Trainer
 
@@ -32,6 +33,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--path_to_repo_dir", "-r", type=str, nargs='?', required=True)
     parser.add_argument("--path_to_out_dir", "-o", type=str, nargs='?', required=True)
+    parser.add_argument("--train_molgpt", "-m", action="store_true", default=False)
     args = parser.parse_args()
     if not os.path.exists(args.path_to_out_dir):
         os.makedirs(args.path_to_out_dir)
@@ -52,20 +54,21 @@ def setup_default_logging():
 
 
 @record
-def main(seed, repo_dir, out_dir):
+def main(seed, repo_dir, out_dir, train_molgpt):
     model_ckpt = f"{out_dir}/ckpt.pt"
     data_dir = f"{out_dir}/data"
 
     dataset_config = DatasetConfig.from_config_file(f"{repo_dir}/configs/datasets/guacamol/unsupervised")
     tokenizer_config = TokenizerConfig.from_config_file(f"{repo_dir}/configs/tokenizers/smiles_separate_task_token")
-    model_config = ModelConfig.from_config_file(f"{repo_dir}/configs/models/jointformer_separate_task_token")
+    model_conf_path = f"{repo_dir}/configs/models/molgpt" if train_molgpt else f"{repo_dir}/configs/models/jointformer_separate_task_token"
+    model_config = ModelConfig.from_config_file(model_conf_path)
     trainer_config = TrainerConfig.from_config_file(f"{repo_dir}/configs/trainers/maxi_test")
     logger_config = LoggerConfig.from_config_file(f"{repo_dir}/configs/loggers/maxi")
 
     train_dataset = AutoDataset.from_config(dataset_config, split='train', data_dir=data_dir)
     val_dataset = AutoDataset.from_config(dataset_config, split='val', data_dir=data_dir)
     tokenizer = AutoTokenizer.from_config(tokenizer_config)
-    model: Jointformer = AutoModel.from_config(model_config)
+    model = AutoModel.from_config(model_config)
     logger = AutoLogger.from_config(logger_config) if logger_config else None
 
     dump_configs(out_dir, dataset_config, tokenizer_config, model_config, trainer_config, logger_config) 
@@ -74,7 +77,10 @@ def main(seed, repo_dir, out_dir):
 
     init_ddp(trainer_config.enable_ddp)
     
-    model.update_training_mode(True)
+    if not train_molgpt:
+        model.update_training_mode(True)
+    else:
+        model.configure_optimizers = Transformer(0, 0, 0, 0, 0., 0., 0, 0, 0, 0.).configure_optimizers
     
     trainer = Trainer(
         out_dir=out_dir,
@@ -87,26 +93,22 @@ def main(seed, repo_dir, out_dir):
         logger=logger)
     
     console = setup_default_logging()
-    try:
-        trainer.resume_snapshot()
-        console.info("Resumed Snapshot")
-    except FileNotFoundError:
-        if model_ckpt:
-            try:
-                trainer.resume_from_file(model_ckpt)
-                console.info(f"Resuming pre-trained model from '{model_ckpt}'")
-            except FileNotFoundError:
-                console.info(f"No model checkpoint at '{model_ckpt}'")
-        else:
-            console.info("Training from scratch")
+    console.info("Training from scratch")
     if trainer.is_ddp:
         dist.barrier() # Ensure all processes are ready before training
     
     start_time = time.time()
     trainer.train()
     end_time = time.time()
+    
+    if os.path.exists(model_ckpt):
+        p, ext = os.path.splitext(model_ckpt)
+        fp, _ = os.path.split(p)
+        model_ckpt = os.path.join(fp, f"ckpt_{time.strftime('%H_%M_%S')}{ext}")        
     trainer._save_ckpt(model_ckpt)
+    
     end_ddp(trainer_config.enable_ddp)
+    
     logger.log({"Execution Time (h)": (end_time - start_time)/3600})
     logger.finish()
 
@@ -115,12 +117,13 @@ if __name__ == "__main__":
     args = parse_args()
     repo_dir = args.path_to_repo_dir
     out_dir = args.path_to_out_dir
+    train_molgpt = args.train_molgpt
     os.chdir(repo_dir)
     seed = 1337
     set_seed(seed)
     create_output_dir(os.path.join(out_dir, f"seed_{seed}"))
     try:
-        main(seed, repo_dir, out_dir)
+        main(seed, repo_dir, out_dir, train_molgpt)
         logging.info(f"Completed seed {seed}")
     except Exception as e:
         logging.critical(e, exc_info=True)
