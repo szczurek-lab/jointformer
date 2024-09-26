@@ -28,6 +28,7 @@ class GroupedQueryAttention(nn.Module):
         self.v_proj = nn.Linear(self.embedding_dim, self.kv_head_dim, bias=False)
         self.out = nn.Linear(self.embedding_dim, self.embedding_dim, bias=bias)
         self.kv_cache = None
+        self.attention_mask = None
 
 
     def init_cache(self, batch_size: int, device: torch.device) -> None:
@@ -66,12 +67,13 @@ class GroupedQueryAttention(nn.Module):
     
     def mask(self, x: torch.Tensor) -> torch.Tensor:
         seq_len = x.size(-1)
-        mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(x.device)
-        x = x.masked_fill(mask[None, None, None, :, :], float('-inf'))
+        if self.attention_mask is None or self.attention_mask.shape != (seq_len, seq_len):
+            self.attention_mask = torch.triu(torch.ones(seq_len, seq_len), diagonal=1).bool().to(x.device)
+        x = x.masked_fill(self.attention_mask[None, None, None, :, :], float('-inf'))
         return x
         
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         """
         Performs grouped query attention.
         Code inspired by [https://github.com/fkodom/grouped-query-attention-pytorch/blob/main/grouped_query_attention_pytorch/attention.py]
@@ -111,7 +113,8 @@ class GroupedQueryAttention(nn.Module):
         
         # Concatenating heads for multiplication with projection matrix
         concat_heads = rearrange(val_scores, 'b n h d -> b n (h d)')
-        assert concat_heads.shape == (in_batch_size, seq_len, self.embedding_dim), f"Expected concat_head's shape to be {(in_batch_size, seq_len, self.embedding_dim)}, but was {concat_heads.shape}"
+        assert concat_heads.shape == (in_batch_size, seq_len, self.embedding_dim), \
+            f"Expected concat_head's shape to be {(in_batch_size, seq_len, self.embedding_dim)}, but was {concat_heads.shape}"
         
         # Projecting back into original embedding dimension for the next layer
         y = self.out(concat_heads)
