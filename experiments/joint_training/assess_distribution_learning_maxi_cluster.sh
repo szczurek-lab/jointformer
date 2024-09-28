@@ -24,4 +24,4 @@
 
 conda run python -m pip install -r requirements.txt
 
-srun sh experiments/joint_training/assess_distribution_learning_maxi.sh ~/results/ckpt.pt ~/results/data/data/guacamol/train/smiles.txt
+srun sh experiments/joint_training/assess_distribution_learning_maxi.sh ~/generation/ckpt.pt ~/results/data/data/guacamol/train/smiles.txt
