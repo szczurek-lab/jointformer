@@ -12,6 +12,7 @@ from jointformer.configs.tokenizer import TokenizerConfig
 from jointformer.configs.model import ModelConfig
 from jointformer.utils.tokenizers.auto import AutoTokenizer
 from jointformer.models.auto import AutoModel
+from jointformer.models.jointformer import Jointformer
 from guacamol.assess_distribution_learning import assess_distribution_learning
 
 
@@ -38,7 +39,7 @@ def main(args):
     tokenizer = AutoTokenizer.from_config(tokenizer_config)
     
     model.load_pretrained(args.path_to_model_ckpt)
-    model = model.to_guacamole_generator(tokenizer, args.batch_size, args.temperature, args.top_k, args.device)
+    model: Jointformer = model.to_guacamole_generator(tokenizer, args.batch_size, args.temperature, args.top_k, args.device)
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     assess_distribution_learning(model, args.chembl_training_file, args.output)
 

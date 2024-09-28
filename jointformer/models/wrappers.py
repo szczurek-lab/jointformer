@@ -48,6 +48,19 @@ class JointformerSmilesGeneratorWrapper(DefaultSmilesGeneratorWrapper):
             generated.extend(self._tokenizer.decode(samples))
         return generated[:number_samples]
     
+
+class MolGPTSmilesGeneratorWrapper(DefaultSmilesGeneratorWrapper):
+    @torch.no_grad()
+    def generate(self, number_samples: int) -> List[str]:
+        generated = []
+        self._model.eval()
+        model = self._model.to(self._device)
+        for _ in tqdm(range(0, number_samples, self._batch_size), "Generating samples"):
+            prefix = torch.tensor(self._tokenizer.generation_prefix, device=self._device).long().unsqueeze(0).expand(self._batch_size, -1)
+            samples: list[dict] = model.forward(prefix)
+            generated.extend(self._tokenizer.decode(samples))
+        return generated[:number_samples]    
+
     
 class DefaultSmilesEncoderWrapper(SmilesEncoder):
     def __init__(self, model, tokenizer, batch_size, device):
