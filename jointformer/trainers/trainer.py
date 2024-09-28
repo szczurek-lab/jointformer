@@ -465,7 +465,7 @@ class Trainer:
                     bw_pass_0 = time.time()
                     outputs = self.model.get_loss(**inputs)
                     bw_pass_1 = time.time()
-                    self.logger.log({"Borward pass (ms)": (bw_pass_1-bw_pass_0)*1000})
+                    self.logger.log({"Backward pass (ms)": (bw_pass_1-bw_pass_0)*1000})
                     loss = outputs["loss"] / self.gradient_accumulation_steps  # scale the loss to account for gradient accumulation
                 inputs = self.get_training_batch()  # async prefetch next batch
                 self.scaler.scale(loss).backward()  # backward pass, with gradient scaling if training in fp16

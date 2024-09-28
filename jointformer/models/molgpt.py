@@ -35,8 +35,9 @@ class MolGPT(BaseModel, SmilesEncoder):
         self._device = device
         return self
 
-    def to_guacamole_generator(self, *args, **kwargs):
-        raise NotImplementedError
+    def to_guacamole_generator(self, tokenizer, batch_size, temperature, top_k, device):
+        from jointformer.models.wrappers import MolGPTSmilesGeneratorWrapper
+        return MolGPTSmilesGeneratorWrapper(self._model, tokenizer, batch_size, temperature, top_k, device)
 
     @torch.no_grad()
     def encode(self, smiles: list[str]) -> np.ndarray:
