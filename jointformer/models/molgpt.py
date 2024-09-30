@@ -28,7 +28,7 @@ class MolGPT(BaseModel, SmilesEncoder):
         self._temperature = None
         self._top_k = None
         self._device = None
-    
+
     def to_smiles_encoder(self, tokenizer=None, batch_size=64, device='cuda:0') -> SmilesEncoder:
         self._tokenizer = tokenizer
         self._batch_size = batch_size
@@ -65,7 +65,7 @@ class MolGPT(BaseModel, SmilesEncoder):
         _ckpt = torch.load(filename)
         self._model.load_state_dict(self._filter_checkpoint(_ckpt))
         del _ckpt
-    
+        
     def _filter_checkpoint(self, ckpt: dict) -> dict:
         model_params = [param for param in self._model.state_dict().keys()]
         filtered_checkpoint = {}
@@ -197,6 +197,43 @@ class GPT(nn.Module):
 
         logger.info("number of parameters: %e", sum(p.numel() for p in self.parameters()))
 
+    def top_k_logits(self, logits, k):
+        v, ix = torch.topk(logits, k)
+        out = logits.clone()
+        out[out < v[:, [-1]]] = -float('Inf')
+        return out    
+
+    @torch.no_grad()
+    def sample(self, x, steps, temperature=1.0, sample=False, top_k=None, prop = None, scaffold = None):
+        """
+        take a conditioning sequence of indices in x (of shape (b,t)) and predict the next token in
+        the sequence, feeding the predictions back into the model each time. Clearly the sampling
+        has quadratic complexity unlike an RNN that is only linear, and has a finite context window
+        of block_size, unlike an RNN that has an infinite context window.
+        """
+        block_size = self.get_block_size()   
+        self.eval()
+
+        for k in range(steps):
+            x_cond = x if x.size(1) <= block_size else x[:, -block_size:] # crop context if needed
+            logits, _, _ = self.forward(x_cond, prop = prop, scaffold = scaffold)   # for liggpt
+            # logits, _, _ = model(x_cond)   # for char_rnn
+            # pluck the logits at the final step and scale by temperature
+            logits = logits[:, -1, :] / temperature
+            # optionally crop probabilities to only the top k options
+            if top_k is not None:
+                logits = self.top_k_logits(logits, top_k)
+            # apply softmax to convert to probabilities
+            probs = F.softmax(logits, dim=-1)
+            # sample from the distribution or take the most likely
+            if sample:
+                ix = torch.multinomial(probs, num_samples=1)
+            else:
+                _, ix = torch.topk(probs, k=1, dim=-1)
+            # append to the sequence and continue
+            x = torch.cat((x, ix), dim=1)
+        return x
+
     def get_block_size(self):
         return self.block_size
 
@@ -325,7 +362,7 @@ class GPT(nn.Module):
         if targets is not None:
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.view(-1))
 
-        return {'embeddings': x, 'logits': logits, 'loss': loss, 'attn_maps': attn_maps}  # (num_layers, batch_size, num_heads, max_seq_len, max_seq_len)
+        return logits, loss, attn_maps # (num_layers, batch_size, num_heads, max_seq_len, max_seq_len)
 
 
 class SmilesDataset(Dataset):
